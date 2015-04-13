@@ -214,7 +214,7 @@ Handle<Value> CardSetAid(const Arguments& args) {
 }
 
 Handle<Value> CardSetKey(const Arguments & args) {
-  typedef MifareDESFireKey (*callback_t)(uint8_t *);
+  typedef MifareDESFireKey (*callback_t)(const uint8_t *);
   callback_t callbacks[4][2] = {
     {mifare_desfire_des_key_new, mifare_desfire_des_key_new_with_version},
     {mifare_desfire_3des_key_new, mifare_desfire_3des_key_new_with_version},

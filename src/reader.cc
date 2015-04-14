@@ -16,14 +16,15 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
 
   MifareTag *tags = freefare_get_tags(data->device);
-  MifareTag *t = NULL;
   if (tags != NULL) {
-    for (t = tags; *t != NULL; t += sizeof(MifareTag)) {
+    int tag_count = 0;
+    MifareTag t = NULL;
+    for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
     // TODO: do something with the tag
-      if(freefare_get_tag_type(*t) == DESFIRE) {
+      if(freefare_get_tag_type(t) == DESFIRE) {
 
         card_data *cardData = new card_data(data);
-        cardData->tag = *t;
+        cardData->tag = t;
         cardData->tags = tags;
         Local<Object> card = Object::New();
         card->Set(String::NewSymbol("type"), String::New("desfire"));

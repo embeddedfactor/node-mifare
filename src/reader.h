@@ -10,13 +10,18 @@
 #include <iostream>
 #include <cstring>
 
-#ifdef __APPLE__
+#ifndef USE_LIBNFC
+#if defined(__APPLE__) || defined(__linux__)
 #include <PCSC/winscard.h>
 #include <PCSC/wintypes.h>
 #else
 #include <winscard.h>
 #endif
 #include <freefare_pcsc.h>
+#else // USE_LIBNFC
+#include <nfc/nfc.h>
+#include <freefare_nfc.h>
+#endif // USE_LIBNFC
 #include <cstdlib>
 
 
@@ -29,19 +34,38 @@ struct reader_data {
    * @param name The name of the reader
    * @return The SCARD_READERSTATE object representating this object
    */
-  reader_data(const char* name, pcsc_context *hContext) {
+  reader_data(const char* name,
+#ifndef USE_LIBNFC
+      pcsc_context *hContext
+#else
+      nfc_device *device
+#endif
+  )
+  {
     this->name = std::string(name);
+    this->timer.data = this;
+#ifndef USE_LIBNFC
+    this->context = hContext;
     this->state.szReader = this->name.c_str();
     this->state.dwCurrentState = SCARD_STATE_UNAWARE;
     this->state.pvUserData = this;
-    this->timer.data = this;
-    this->context = hContext;
+#else
+    this->last_err = 0;
+    this->last_tag = NULL;
+    this->device = device;
+#endif
   }
 
   std::string name;
   uv_timer_t timer;
+#ifndef USE_LIBNFC
   SCARD_READERSTATE state;
   pcsc_context *context;
+#else
+  int last_err;
+  MifareTag last_tag;
+  nfc_device *device;
+#endif
   Persistent<Function> callback;
   Persistent<Object> self;
 };

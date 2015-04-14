@@ -8,13 +8,6 @@
 #include <iostream>
 #include <cstring>
 
-#ifdef __APPLE__
-#include <PCSC/winscard.h>
-#include <PCSC/wintypes.h>
-#else
-#include <winscard.h>
-#endif
-#include <freefare_pcsc.h>
 
 #include "reader.h"
 
@@ -24,7 +17,11 @@ using namespace node;
 /**
  * plugin global secure card context
  **/
+#ifndef USE_LIBNFC
 static pcsc_context *context;
+#else
+static nfc_context *context;
+#endif
 static std::vector<reader_data *> readers_data;
 
 /**
@@ -33,8 +30,14 @@ static std::vector<reader_data *> readers_data;
  * @return An Array of Strings with reader names
  **/
 Handle<Value> getReader(const Arguments& args) {
+#ifndef USE_LIBNFC
   LONG res;
   char *reader_names;
+#else
+  size_t res;
+  const size_t MAX_READERS = 16;
+  nfc_connstring reader_names[MAX_READERS];
+#endif
   char *reader_iter = NULL;
   int   reader_count = 0;
 
@@ -47,10 +50,15 @@ Handle<Value> getReader(const Arguments& args) {
   }
 
   // Allocate buffer. We assume autoallocate is not present (on Mac OS X anyway)
+  readers = Persistent<Object>::New(Object::New());
+#ifndef USE_LIBNFC
   res = pcsc_list_devices(context, &reader_names);
-  if(res != SCARD_S_SUCCESS || reader_names[0] == '\0') {
-    //readers = Persistent<Array>::New(Array::New(0));
-    readers = Persistent<Object>::New(Object::New());
+  if(res != SCARD_S_SUCCESS || reader_names[0] == '\0')
+#else
+  res = nfc_list_devices(context, reader_names, MAX_READERS);
+  if(res == 0)
+#endif
+  {
     //delete [] reader_names;
     ThrowException(Exception::TypeError(String::New("Unable to list readers")));
     return scope.Close(Undefined());
@@ -59,17 +67,30 @@ Handle<Value> getReader(const Arguments& args) {
   // Clean before use
   for(std::vector<reader_data *>::iterator iter;iter!=readers_data.end();iter++) {
     reader_data *data = *iter;
+#ifndef USE_LIBNFC
     delete [] data->state.szReader;
+#endif
     delete data;
   }
   readers_data.clear();
-  readers = Persistent<Object>::New(Object::New());
 
   // Get number of readers from null separated string
-  reader_iter = reader_names;
+  reader_iter = reader_names[0];
+#ifndef USE_LIBNFC
   while(*reader_iter != '\0') {
-    // Node Object:
     readers_data.push_back(new reader_data(reader_iter, context));
+#else
+  char *names_end = reader_names[0] + (MAX_READERS * sizeof(nfc_connstring));
+  while(reader_iter <= names_end) {
+    nfc_device *dev = nfc_open(context, reader_iter);
+    if (dev == NULL) {
+      // XXX: failed to open connstring
+      reader_iter += sizeof(nfc_connstring);
+      continue;
+    }
+    readers_data.push_back(new reader_data(reader_iter, dev));
+#endif
+    // Node Object:
     Local<External> data = Local<External>::New(External::New(readers_data.back()));
     Local<Object> reader = Local<Object>::New(Object::New());
     reader->Set(String::NewSymbol("name"), String::New(reader_iter));
@@ -78,8 +99,12 @@ Handle<Value> getReader(const Arguments& args) {
     reader->Set(String::NewSymbol("release"), FunctionTemplate::New(ReaderRelease)->GetFunction());
     reader->SetHiddenValue(String::NewSymbol("data"), data);
     readers->Set(String::NewSymbol(reader_iter), reader);
+#ifndef USE_LIBNFC
     reader_iter += strlen(reader_iter)+1;
     reader_count++;
+#else
+    reader_iter += sizeof(nfc_connstring);
+#endif
   }
   //delete [] reader_names;
 
@@ -91,7 +116,11 @@ Handle<Value> getReader(const Arguments& args) {
  * @param exports The Commonjs module exports object
  **/
 void init(Handle<Object> exports) {
+#ifndef USE_LIBNFC
   pcsc_init(&context);
+#else
+  nfc_init(&context);
+#endif
   if(!context) {
     ThrowException(Exception::TypeError(String::New("Cannot establish context")));
     return; 

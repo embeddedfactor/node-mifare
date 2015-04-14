@@ -3,6 +3,9 @@
     {
       "target_name": "node_mifare",
       "dependencies": ["node_modules/libfreefare-pcsc/binding.gyp:freefare_pcsc"],
+      "defines": [
+        "USE_LIBNFC",
+      ],
       "sources": [
         "src/mifare.cc",
         "src/reader.cc",

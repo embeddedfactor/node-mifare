@@ -4,14 +4,120 @@
 #include "reader.h"
 #include "desfire.h"
 
+#ifdef USE_LIBNFC
+inline Local<String> make_status(const char* const s) {
+  return v8::String::New(s);
+}
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   HandleScope scope;
   reader_data *data = static_cast<reader_data *>(handle->data);
-  LONG res;
-  DWORD event;
   Local<String> status;
   Local<Object> reader = Local<Object>::New(data->self);
-  reader->Set(String::NewSymbol("name"), String::New(data->state.szReader));
+  reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
+
+  MifareTag *tags = freefare_get_tags(data->device);
+  MifareTag *t = NULL;
+  if (tags != NULL) {
+    for (t = tags; *t != NULL; t += sizeof(MifareTag)) {
+    // TODO: do something with the tag
+      if(freefare_get_tag_type(*t) == DESFIRE) {
+
+        card_data *cardData = new card_data(data);
+        cardData->tag = *t;
+        cardData->tags = tags;
+        Local<Object> card = Object::New();
+        card->Set(String::NewSymbol("type"), String::New("desfire"));
+        card->SetHiddenValue(String::NewSymbol("data"), External::Wrap(cardData));
+
+        card->Set(String::NewSymbol("info"), FunctionTemplate::New(CardInfo)->GetFunction());
+        card->Set(String::NewSymbol("masterKeyInfo"), FunctionTemplate::New(CardMasterKeyInfo)->GetFunction());
+        card->Set(String::NewSymbol("keyVersion"), FunctionTemplate::New(CardKeyVersion)->GetFunction());
+        card->Set(String::NewSymbol("freeMemory"), FunctionTemplate::New(CardFreeMemory)->GetFunction());
+        card->Set(String::NewSymbol("setKey"), FunctionTemplate::New(CardSetKey)->GetFunction());
+        card->Set(String::NewSymbol("setAid"), FunctionTemplate::New(CardSetAid)->GetFunction());
+        card->Set(String::NewSymbol("format"), FunctionTemplate::New(CardFormat)->GetFunction());
+        card->Set(String::NewSymbol("createNdef"), FunctionTemplate::New(CardCreateNdef)->GetFunction());
+        card->Set(String::NewSymbol("readNdef"), FunctionTemplate::New(CardReadNdef)->GetFunction());
+        card->Set(String::NewSymbol("writeNdef"), FunctionTemplate::New(CardWriteNdef)->GetFunction());
+        card->Set(String::NewSymbol("free"), FunctionTemplate::New(CardFree)->GetFunction());
+
+        const unsigned argc = 3;
+        Local<Value> argv[argc] = {
+          Local<Value>::New(Undefined()),
+          Local<Value>::New(reader),
+          Local<Value>::New(card)
+        };
+        data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+
+        //delete cardData;
+      }
+    
+      // compare to data->last_tag(s) should be more than one?
+
+      // add new tags, remove old tags
+    }
+  } else {
+    // check for nfc error
+    int err = nfc_device_get_last_error(data->device);
+    if (err == data->last_err) {
+      /*
+      We only want to react on _changes_.
+      */
+      return;
+    }
+    if (err == NFC_SUCCESS) {
+      status = make_status("empty");
+    } else if(err == NFC_EIO) {
+      status = make_status("IO Error");
+    } else if(err == NFC_EINVARG) {
+      // XXX: should not happen
+    } else if(err == NFC_EDEVNOTSUPP) {
+      status = make_status("invalid");
+    } else if(err == NFC_ENOTSUCHDEV) {
+      status = make_status("invalid");
+    } else if(err == NFC_ENOTIMPL) {
+      status = make_status("invalid");
+    } else if(err == NFC_EOVFLOW) {
+      status = make_status("overflow");
+    } else if(err == NFC_ETIMEOUT) {
+      reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(v8::String::New("timeout")));
+    } else if(err == NFC_EOPABORTED) {
+      status = make_status("aborted");
+    } else if(err == NFC_ETGRELEASED) {
+      status = make_status("released");
+    } else if(err == NFC_ERFTRANS) {
+      status = make_status("error");
+    } else if(err == NFC_EMFCAUTHFAIL) {
+      status = make_status("authfail");
+    } else if(err == NFC_ESOFT) {
+      status = make_status("error");
+    } else if(err == NFC_ECHIP){
+      status = make_status("brokenchip");
+    }
+    else
+    {
+      status = make_status("unknown");
+    }
+    /*
+    Came here because err changed. So we call the callback function
+    */
+    const unsigned argc = 3;
+    Local<Value> argv[argc] = {
+      Local<Value>::New(Undefined()),
+      Local<Value>::New(reader),
+      Local<Value>::New(Undefined())
+    };
+    data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+  }
+}
+#else // USE_LIBNFC
+void reader_timer_callback(uv_timer_t *handle, int timer_status) {
+  HandleScope scope;
+  reader_data *data = static_cast<reader_data *>(handle->data);
+  size_t res;
+  Local<String> status;
+  Local<Object> reader = Local<Object>::New(data->self);
+  reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
 
   res = SCardGetStatusChange(data->context->context, 1, &data->state, 1);
   if(res == SCARD_S_SUCCESS) {
@@ -47,7 +153,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         }
 
         // Establishes a connection to a smart card contained by a specific reader.
-        MifareTag *tags = freefare_get_tags_pcsc(data->context, data->state.szReader);
+        MifareTag *tags = freefare_get_tags(data->device);
         // XXX: With PCSC tags is always length 2 with {tag, NULL} we assume this is allways the case here!!!!
         for(int i = 0; (!res) && tags[i]; i++) {
           if(tags[i] && freefare_get_tag_type(tags[i]) == DESFIRE) {
@@ -113,6 +219,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
       data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
   }
 }
+#endif // USE_LIBNFC
 
 Handle<Value> ReaderRelease(const Arguments &args) {
   HandleScope scope;
@@ -126,7 +233,11 @@ Handle<Value> ReaderRelease(const Arguments &args) {
   //if(data->timer) {
     uv_timer_stop(&data->timer);
   //}
+#ifndef USE_LIBNFC
   SCardReleaseContext(data->context->context);
+#else
+  nfc_close(data->device);
+#endif
   data->callback.Dispose();
   data->callback.Clear();
   data->self.Dispose();
@@ -169,6 +280,7 @@ Handle<Value> ReaderListen(const Arguments& args) {
 Handle<Value> ReaderSetLed(const Arguments& args) {
   HandleScope scope;
   Local<Object> self = args.This();
+#ifndef USE_LIBNFC
   const uint32_t sSize = 9;
   uint8_t sBuffer[sSize] = {0xFF, 0x00, 0x40, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00};
   uint8_t rBuffer[262];
@@ -216,6 +328,7 @@ Handle<Value> ReaderSetLed(const Arguments& args) {
   std::cout << "retCode: " << std::hex << retCode << std::endl;
   rv = SCardDisconnect(hCard, SCARD_LEAVE_CARD);
 
+#endif
   return scope.Close(args.This()); 
 }
 

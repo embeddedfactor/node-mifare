@@ -20,7 +20,12 @@ using namespace node;
 #ifndef USE_LIBNFC
 static pcsc_context *context;
 #else
-static nfc_context *context;
+#include <signal.h>
+static nfc_context *context = NULL;
+void deinitialize_nfc_context(int p) {
+  if (context)
+    nfc_exit(context);
+}
 #endif
 static std::vector<reader_data *> readers_data;
 
@@ -63,7 +68,6 @@ Handle<Value> getReader(const Arguments& args) {
   if(numDevices == 0) {
     return scope.Close(readers);
   }
-    // open any device
 #endif
 
   // Clean before use
@@ -87,7 +91,6 @@ Handle<Value> getReader(const Arguments& args) {
   while(reader_iter <= names_end) {
     // see if we can claim it
     nfc_device *dev = NULL;
-/*
     dev = nfc_open(context, reader_iter);
     if (dev == NULL) {
       // XXX: failed to open connstring
@@ -96,7 +99,6 @@ Handle<Value> getReader(const Arguments& args) {
     }
     std::cout << "Found device: " << nfc_device_get_name(dev) << std::endl;
     nfc_close(dev);
-*/
     readers_data.push_back(new reader_data(reader_iter, dev));
 #endif
     // Node Object:
@@ -124,11 +126,18 @@ Handle<Value> getReader(const Arguments& args) {
  * Node.js initialization function
  * @param exports The Commonjs module exports object
  **/
+
 void init(Handle<Object> exports) {
 #ifndef USE_LIBNFC
   pcsc_init(&context);
 #else
   nfc_init(&context);
+  if (signal(SIGTERM, deinitialize_nfc_context) != SIG_IGN)
+    signal(SIGABRT, deinitialize_nfc_context);
+  if (signal(SIGHUP, deinitialize_nfc_context) != SIG_IGN)
+    signal(SIGHUP, deinitialize_nfc_context);
+  if (signal(SIGINT, deinitialize_nfc_context) != SIG_IGN)
+    signal(SIGINT, deinitialize_nfc_context);
 #endif
   if(!context) {
     ThrowException(Exception::Error(String::New("Cannot establish context")));

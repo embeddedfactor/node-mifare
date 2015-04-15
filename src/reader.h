@@ -38,6 +38,7 @@ struct reader_data {
 #ifndef USE_LIBNFC
       pcsc_context *hContext
 #else
+      nfc_context *context,
       nfc_device *device
 #endif
   )
@@ -50,7 +51,8 @@ struct reader_data {
     this->state.dwCurrentState = SCARD_STATE_UNAWARE;
     this->state.pvUserData = this;
 #else
-    this->last_err = 0;
+    this->context = context;
+    this->last_err = NFC_ENOTSUCHDEV;
     this->last_tag = NULL;
     this->device = device;
 #endif
@@ -62,6 +64,7 @@ struct reader_data {
   SCARD_READERSTATE state;
   pcsc_context *context;
 #else
+  nfc_context *context;
   int last_err;
   MifareTag last_tag;
   nfc_device *device;

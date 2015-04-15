@@ -101,7 +101,8 @@ Handle<Value> getReader(const Arguments& args) {
       continue;
     }
     std::cout << "Found device: " << nfc_device_get_name(dev) << std::endl;
-    readers_data.push_back(new reader_data(reader_iter, dev));
+    nfc_close(dev);
+    readers_data.push_back(new reader_data(reader_iter, context, NULL));
 #endif
     // Node Object:
     Local<External> data = Local<External>::New(External::New(readers_data.back()));

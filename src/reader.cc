@@ -125,7 +125,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   Local<Object> reader = Local<Object>::New(data->self);
   reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
   if (!data->device) {
-    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("nonfcdevice")));
+    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("unavailable")));
     const unsigned argc = 3;
     Local<Value> err = Exception::Error(String::New("No NFC device associated with this reader"));
     Local<Value> argv[argc] = {
@@ -137,7 +137,9 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   }
 
   MifareTag *tags = freefare_get_tags(data->device);
-  if (tags != NULL) {
+  if (tags != NULL && tags[0] != NULL) { // found more than 0 tags
+    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("present")));
+    data->last_err = NFC_SUCCESS;
     int tag_count = 0;
     MifareTag t = NULL;
     for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
@@ -180,18 +182,24 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     }
   } else {
     // check for nfc error
-    int err = nfc_device_get_last_error(data->device);
-    nfc_perror(data->device, "DEBUG");
-    if (err == data->last_err) {
-      /*
-      We only want to react on _changes_.
-      */
-      return;
+    int err;
+    if (tags != NULL && tags[0] == NULL) {
+      err = data->last_err = NFC_SUCCESS;
+    } else {
+      err = nfc_device_get_last_error(data->device);
+      if (err == data->last_err) {
+        /*
+        We only want to react on _changes_.
+        */
+        return;
+      } else {
+        data->last_err = err;
+      }
     }
-    if (err == NFC_SUCCESS) {
+    if (err == NFC_SUCCESS) { // no tag was read but success
       status = make_status("empty");
     } else if(err == NFC_EIO) {
-      status = make_status("IO Error");
+      status = make_status("ioerror");
     } else if(err == NFC_EINVARG) {
       // XXX: should not happen
     } else if(err == NFC_EDEVNOTSUPP) {
@@ -251,7 +259,8 @@ Handle<Value> ReaderRelease(const Arguments &args) {
 #ifndef USE_LIBNFC
   SCardReleaseContext(data->context->context);
 #else
-  nfc_close(data->device);
+  if (data->device)
+    nfc_close(data->device);
 #endif
   data->callback.Dispose();
   data->callback.Clear();
@@ -269,6 +278,12 @@ Handle<Value> ReaderListen(const Arguments& args) {
     return scope.Close(Undefined());
   }
 
+#ifndef USE_LIBNFC
+#else
+  if (data->context && data->device == NULL)
+    nfc_open(data->context, data->name.c_str());
+
+#endif
   data->callback = Persistent<Function>::New(Local<Function>::Cast(args[0]));
   data->self = Persistent<Object>::New(self);
 

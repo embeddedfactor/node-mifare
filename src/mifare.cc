@@ -75,6 +75,9 @@ Handle<Value> getReader(const Arguments& args) {
     reader_data *data = *iter;
 #ifndef USE_LIBNFC
     delete [] data->state.szReader;
+#else
+    if (data->device)
+      nfc_close(data->device);
 #endif
     delete data;
   }
@@ -98,7 +101,6 @@ Handle<Value> getReader(const Arguments& args) {
       continue;
     }
     std::cout << "Found device: " << nfc_device_get_name(dev) << std::endl;
-    nfc_close(dev);
     readers_data.push_back(new reader_data(reader_iter, dev));
 #endif
     // Node Object:

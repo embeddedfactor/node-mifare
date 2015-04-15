@@ -60,6 +60,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   } else {
     // check for nfc error
     int err = nfc_device_get_last_error(data->device);
+    nfc_perror(data->device, "DEBUG");
     if (err == data->last_err) {
       /*
       We only want to react on _changes_.

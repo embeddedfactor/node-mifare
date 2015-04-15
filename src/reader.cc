@@ -1,6 +1,8 @@
 // Copyright 2013, Rolf Meyer
 // See LICENCE for more information
 
+#include <string.h>
+
 #include "reader.h"
 #include "desfire.h"
 
@@ -138,12 +140,46 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 
   MifareTag *tags = freefare_get_tags(data->device);
   if (tags != NULL && tags[0] != NULL) { // found more than 0 tags
-    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("present")));
     data->last_err = NFC_SUCCESS;
+
+    bool found_new_tag = false;
     int tag_count = 0;
     MifareTag t = NULL;
+    MifareTag old_tag;
+    size_t len;
+    char *old_tag_uid, *t_uid;
+    // look if we found a new tag
+    for(std::vector<MifareTag>::const_iterator i = data->last_tags.begin(); !found_new_tag && i != data->last_tags.end(); ++i) {
+      old_tag = *i;
+      for (t = tags[0]; t != NULL && !found_new_tag; t=tags[++tag_count]) {
+        old_tag_uid = freefare_get_tag_uid(old_tag);
+        t_uid = freefare_get_tag_uid(t);
+        if(len = strlen(old_tag_uid) == strlen(t_uid)) {
+          if(0 != memcmp(old_tag_uid, t_uid, strlen(old_tag_uid))) {
+            found_new_tag = true;
+          }
+        }
+        free(old_tag_uid);
+        free(t_uid);
+      }
+    }
+
+    if(!found_new_tag) {
+      return;
+    }
+
+    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("present")));
+
+    // clear lasts_tags
+    data->last_tags.clear();
+    for(std::vector<MifareTag>::iterator i = data->last_tags.begin(); i != data->last_tags.end(); ++i) {
+    }
+
+    t = NULL;
+    tag_count = 0;
     for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
-    // TODO: do something with the tag
+      data->last_tags.push_back(t);
+      // TODO: do something with the tag
       if(freefare_get_tag_type(t) == DESFIRE) {
 
         card_data *cardData = new card_data(data);
@@ -175,10 +211,6 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 
         //delete cardData;
       }
-    
-      // compare to data->last_tag(s) should be more than one?
-
-      // add new tags, remove old tags
     }
   } else {
     // check for nfc error

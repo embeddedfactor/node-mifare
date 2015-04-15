@@ -53,7 +53,6 @@ struct reader_data {
 #else
     this->context = context;
     this->last_err = NFC_ENOTSUCHDEV;
-    this->last_tag = NULL;
     this->device = device;
 #endif
   }
@@ -66,7 +65,7 @@ struct reader_data {
 #else
   nfc_context *context;
   int last_err;
-  MifareTag last_tag;
+  std::vector<MifareTag> last_tags;
   nfc_device *device;
 #endif
   Persistent<Function> callback;

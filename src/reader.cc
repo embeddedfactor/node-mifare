@@ -281,7 +281,7 @@ Handle<Value> ReaderListen(const Arguments& args) {
 #ifndef USE_LIBNFC
 #else
   if (data->context && data->device == NULL)
-    nfc_open(data->context, data->name.c_str());
+    data->device = nfc_open(data->context, data->name.c_str());
 
 #endif
   data->callback = Persistent<Function>::New(Local<Function>::Cast(args[0]));

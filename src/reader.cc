@@ -229,6 +229,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     data->last_err = err;
     std::cout << "ERRRO is now " << err << std::endl;
     if (err == NFC_SUCCESS) { // present -> empty
+      data->last_tags.clear();
       status = make_status("empty");
     } else if(err == NFC_EIO) {
       status = make_status("ioerror");

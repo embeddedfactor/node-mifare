@@ -139,7 +139,13 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   }
 
   MifareTag *tags = freefare_get_tags(data->device);
-  if (tags != NULL && tags[0] != NULL) { // found more than 0 tags
+  int err = nfc_device_get_last_error(data->device);
+  // return on all but success cases
+  // for succes, we have to distinghish between empty and present
+  if (err != NFC_SUCCESS && err == data->last_err)
+    return;
+  if (err == NFC_SUCCESS && tags != NULL && tags[0] != NULL) { // found more than 0 tags -> present
+    std::cout << "Found tags" << std::endl;
     data->last_err = NFC_SUCCESS;
 
     bool found_new_tag = false;
@@ -165,7 +171,10 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     }
 
     if(!found_new_tag) {
+      std::cout << "No new tag" << std::endl;
       return;
+    } else {
+      std::cout << "NEW tag" << std::endl;
     }
 
     reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("present")));
@@ -212,23 +221,14 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         //delete cardData;
       }
     }
-  } else {
-    // check for nfc error
-    int err;
-    if (tags != NULL && tags[0] == NULL) {
-      err = data->last_err = NFC_SUCCESS;
-    } else {
-      err = nfc_device_get_last_error(data->device);
-      if (err == data->last_err) {
-        /*
-        We only want to react on _changes_.
-        */
+  } else { // not tag found
+    if(err == NFC_SUCCESS)
+      if(data->last_tags.size() == 0) // empty -> empty, no change
         return;
-      } else {
-        data->last_err = err;
-      }
-    }
-    if (err == NFC_SUCCESS) { // no tag was read but success
+
+    data->last_err = err;
+    std::cout << "ERRRO is now " << err << std::endl;
+    if (err == NFC_SUCCESS) { // present -> empty
       status = make_status("empty");
     } else if(err == NFC_EIO) {
       status = make_status("ioerror");
@@ -243,7 +243,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     } else if(err == NFC_EOVFLOW) {
       status = make_status("overflow");
     } else if(err == NFC_ETIMEOUT) {
-      reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(v8::String::New("timeout")));
+      status = make_status("timeout");
     } else if(err == NFC_EOPABORTED) {
       status = make_status("aborted");
     } else if(err == NFC_ETGRELEASED) {

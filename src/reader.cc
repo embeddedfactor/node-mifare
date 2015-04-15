@@ -116,7 +116,8 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   HandleScope scope;
   reader_data *data = static_cast<reader_data *>(handle->data);
-  size_t res;
+  LONG res;
+  DWORD event;
   Local<String> status;
   Local<Object> reader = Local<Object>::New(data->self);
   reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
@@ -155,7 +156,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         }
 
         // Establishes a connection to a smart card contained by a specific reader.
-        MifareTag *tags = freefare_get_tags(data->device);
+        MifareTag *tags = freefare_get_tags_pcsc(data->context, data->state.szReader);
         // XXX: With PCSC tags is always length 2 with {tag, NULL} we assume this is allways the case here!!!!
         for(int i = 0; (!res) && tags[i]; i++) {
           if(tags[i] && freefare_get_tag_type(tags[i]) == DESFIRE) {

@@ -77,11 +77,12 @@ Handle<Value> getReader(const Arguments& args) {
   readers_data.clear();
 
   // Get number of readers from null separated string
-  reader_iter = reader_names[0];
 #ifndef USE_LIBNFC
+  reader_iter = reader_names;
   while(*reader_iter != '\0') {
     readers_data.push_back(new reader_data(reader_iter, context));
 #else
+  reader_iter = reader_names[0];
   char *names_end = reader_names[0] + (MAX_READERS * sizeof(nfc_connstring));
   while(reader_iter <= names_end) {
     // see if we can claim it

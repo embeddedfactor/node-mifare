@@ -87,6 +87,7 @@ Handle<Value> getReader(const Arguments& args) {
   while(reader_iter <= names_end) {
     // see if we can claim it
     nfc_device *dev = NULL;
+/*
     dev = nfc_open(context, reader_iter);
     if (dev == NULL) {
       // XXX: failed to open connstring
@@ -95,6 +96,7 @@ Handle<Value> getReader(const Arguments& args) {
     }
     std::cout << "Found device: " << nfc_device_get_name(dev) << std::endl;
     nfc_close(dev);
+*/
     readers_data.push_back(new reader_data(reader_iter, dev));
 #endif
     // Node Object:

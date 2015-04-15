@@ -4,115 +4,7 @@
 #include "reader.h"
 #include "desfire.h"
 
-#ifdef USE_LIBNFC
-inline Local<String> make_status(const char* const s) {
-  return v8::String::New(s);
-}
-void reader_timer_callback(uv_timer_t *handle, int timer_status) {
-  HandleScope scope;
-  reader_data *data = static_cast<reader_data *>(handle->data);
-  Local<String> status;
-  Local<Object> reader = Local<Object>::New(data->self);
-  reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
-
-  MifareTag *tags = freefare_get_tags(data->device);
-  if (tags != NULL) {
-    int tag_count = 0;
-    MifareTag t = NULL;
-    for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
-    // TODO: do something with the tag
-      if(freefare_get_tag_type(t) == DESFIRE) {
-
-        card_data *cardData = new card_data(data);
-        cardData->tag = t;
-        cardData->tags = tags;
-        Local<Object> card = Object::New();
-        card->Set(String::NewSymbol("type"), String::New("desfire"));
-        card->SetHiddenValue(String::NewSymbol("data"), External::Wrap(cardData));
-
-        card->Set(String::NewSymbol("info"), FunctionTemplate::New(CardInfo)->GetFunction());
-        card->Set(String::NewSymbol("masterKeyInfo"), FunctionTemplate::New(CardMasterKeyInfo)->GetFunction());
-        card->Set(String::NewSymbol("keyVersion"), FunctionTemplate::New(CardKeyVersion)->GetFunction());
-        card->Set(String::NewSymbol("freeMemory"), FunctionTemplate::New(CardFreeMemory)->GetFunction());
-        card->Set(String::NewSymbol("setKey"), FunctionTemplate::New(CardSetKey)->GetFunction());
-        card->Set(String::NewSymbol("setAid"), FunctionTemplate::New(CardSetAid)->GetFunction());
-        card->Set(String::NewSymbol("format"), FunctionTemplate::New(CardFormat)->GetFunction());
-        card->Set(String::NewSymbol("createNdef"), FunctionTemplate::New(CardCreateNdef)->GetFunction());
-        card->Set(String::NewSymbol("readNdef"), FunctionTemplate::New(CardReadNdef)->GetFunction());
-        card->Set(String::NewSymbol("writeNdef"), FunctionTemplate::New(CardWriteNdef)->GetFunction());
-        card->Set(String::NewSymbol("free"), FunctionTemplate::New(CardFree)->GetFunction());
-
-        const unsigned argc = 3;
-        Local<Value> argv[argc] = {
-          Local<Value>::New(Undefined()),
-          Local<Value>::New(reader),
-          Local<Value>::New(card)
-        };
-        data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
-
-        //delete cardData;
-      }
-    
-      // compare to data->last_tag(s) should be more than one?
-
-      // add new tags, remove old tags
-    }
-  } else {
-    // check for nfc error
-    int err = nfc_device_get_last_error(data->device);
-    nfc_perror(data->device, "DEBUG");
-    if (err == data->last_err) {
-      /*
-      We only want to react on _changes_.
-      */
-      return;
-    }
-    if (err == NFC_SUCCESS) {
-      status = make_status("empty");
-    } else if(err == NFC_EIO) {
-      status = make_status("IO Error");
-    } else if(err == NFC_EINVARG) {
-      // XXX: should not happen
-    } else if(err == NFC_EDEVNOTSUPP) {
-      status = make_status("invalid");
-    } else if(err == NFC_ENOTSUCHDEV) {
-      status = make_status("invalid");
-    } else if(err == NFC_ENOTIMPL) {
-      status = make_status("invalid");
-    } else if(err == NFC_EOVFLOW) {
-      status = make_status("overflow");
-    } else if(err == NFC_ETIMEOUT) {
-      reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(v8::String::New("timeout")));
-    } else if(err == NFC_EOPABORTED) {
-      status = make_status("aborted");
-    } else if(err == NFC_ETGRELEASED) {
-      status = make_status("released");
-    } else if(err == NFC_ERFTRANS) {
-      status = make_status("error");
-    } else if(err == NFC_EMFCAUTHFAIL) {
-      status = make_status("authfail");
-    } else if(err == NFC_ESOFT) {
-      status = make_status("error");
-    } else if(err == NFC_ECHIP){
-      status = make_status("brokenchip");
-    }
-    else
-    {
-      status = make_status("unknown");
-    }
-    /*
-    Came here because err changed. So we call the callback function
-    */
-    const unsigned argc = 3;
-    Local<Value> argv[argc] = {
-      Local<Value>::New(Undefined()),
-      Local<Value>::New(reader),
-      Local<Value>::New(Undefined())
-    };
-    data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
-  }
-}
-#else // USE_LIBNFC
+#ifndef USE_LIBNFC
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   HandleScope scope;
   reader_data *data = static_cast<reader_data *>(handle->data);
@@ -220,6 +112,126 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         Local<Value>::New(Undefined())
       };
       data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+  }
+}
+#else // USE_LIBNFC
+inline Local<String> make_status(const char* const s) {
+  return v8::String::New(s);
+}
+void reader_timer_callback(uv_timer_t *handle, int timer_status) {
+  HandleScope scope;
+  reader_data *data = static_cast<reader_data *>(handle->data);
+  Local<String> status;
+  Local<Object> reader = Local<Object>::New(data->self);
+  reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
+  if (!data->device) {
+    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("nonfcdevice")));
+    const unsigned argc = 3;
+    Local<Value> err = Exception::Error(String::New("No NFC device associated with this reader"));
+    Local<Value> argv[argc] = {
+      Local<Value>::New(err),
+      Local<Value>::New(reader),
+      Local<Value>::New(Undefined())
+    };
+    data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+  }
+
+  MifareTag *tags = freefare_get_tags(data->device);
+  if (tags != NULL) {
+    int tag_count = 0;
+    MifareTag t = NULL;
+    for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
+    // TODO: do something with the tag
+      if(freefare_get_tag_type(t) == DESFIRE) {
+
+        card_data *cardData = new card_data(data);
+        cardData->tag = t;
+        cardData->tags = tags;
+        Local<Object> card = Object::New();
+        card->Set(String::NewSymbol("type"), String::New("desfire"));
+        card->SetHiddenValue(String::NewSymbol("data"), External::Wrap(cardData));
+
+        card->Set(String::NewSymbol("info"), FunctionTemplate::New(CardInfo)->GetFunction());
+        card->Set(String::NewSymbol("masterKeyInfo"), FunctionTemplate::New(CardMasterKeyInfo)->GetFunction());
+        card->Set(String::NewSymbol("keyVersion"), FunctionTemplate::New(CardKeyVersion)->GetFunction());
+        card->Set(String::NewSymbol("freeMemory"), FunctionTemplate::New(CardFreeMemory)->GetFunction());
+        card->Set(String::NewSymbol("setKey"), FunctionTemplate::New(CardSetKey)->GetFunction());
+        card->Set(String::NewSymbol("setAid"), FunctionTemplate::New(CardSetAid)->GetFunction());
+        card->Set(String::NewSymbol("format"), FunctionTemplate::New(CardFormat)->GetFunction());
+        card->Set(String::NewSymbol("createNdef"), FunctionTemplate::New(CardCreateNdef)->GetFunction());
+        card->Set(String::NewSymbol("readNdef"), FunctionTemplate::New(CardReadNdef)->GetFunction());
+        card->Set(String::NewSymbol("writeNdef"), FunctionTemplate::New(CardWriteNdef)->GetFunction());
+        card->Set(String::NewSymbol("free"), FunctionTemplate::New(CardFree)->GetFunction());
+
+        const unsigned argc = 3;
+        Local<Value> argv[argc] = {
+          Local<Value>::New(Undefined()),
+          Local<Value>::New(reader),
+          Local<Value>::New(card)
+        };
+        data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+
+        //delete cardData;
+      }
+    
+      // compare to data->last_tag(s) should be more than one?
+
+      // add new tags, remove old tags
+    }
+  } else {
+    // check for nfc error
+    int err = nfc_device_get_last_error(data->device);
+    nfc_perror(data->device, "DEBUG");
+    if (err == data->last_err) {
+      /*
+      We only want to react on _changes_.
+      */
+      return;
+    }
+    if (err == NFC_SUCCESS) {
+      status = make_status("empty");
+    } else if(err == NFC_EIO) {
+      status = make_status("IO Error");
+    } else if(err == NFC_EINVARG) {
+      // XXX: should not happen
+    } else if(err == NFC_EDEVNOTSUPP) {
+      status = make_status("invalid");
+    } else if(err == NFC_ENOTSUCHDEV) {
+      status = make_status("invalid");
+    } else if(err == NFC_ENOTIMPL) {
+      status = make_status("invalid");
+    } else if(err == NFC_EOVFLOW) {
+      status = make_status("overflow");
+    } else if(err == NFC_ETIMEOUT) {
+      reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(v8::String::New("timeout")));
+    } else if(err == NFC_EOPABORTED) {
+      status = make_status("aborted");
+    } else if(err == NFC_ETGRELEASED) {
+      status = make_status("released");
+    } else if(err == NFC_ERFTRANS) {
+      status = make_status("error");
+    } else if(err == NFC_EMFCAUTHFAIL) {
+      status = make_status("authfail");
+    } else if(err == NFC_ESOFT) {
+      status = make_status("error");
+    } else if(err == NFC_ECHIP){
+      status = make_status("brokenchip");
+    }
+    else
+    {
+      status = make_status("unknown");
+    }
+    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(status));
+    /*
+    Came here because err changed. So we call the callback function
+    */
+    const unsigned argc = 3;
+    Local<Value> argv[argc] = {
+      Local<Value>::New(Undefined()),
+      Local<Value>::New(reader),
+      Local<Value>::New(Undefined())
+    };
+    data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
   }
 }
 #endif // USE_LIBNFC

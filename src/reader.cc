@@ -148,13 +148,14 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     std::cout << "Found tags" << std::endl;
     data->last_err = NFC_SUCCESS;
 
-    bool found_new_tag = false;
     int tag_count = 0;
     MifareTag t = NULL;
     MifareTag old_tag;
     size_t len;
     char *old_tag_uid, *t_uid;
-    // look if we found a new tag
+    // we definetly found new tags if previous search did not get any
+    // else we have to compare in the loop below
+    bool found_new_tag = data->last_tags.size() == 0;
     for(std::vector<MifareTag>::const_iterator i = data->last_tags.begin(); !found_new_tag && i != data->last_tags.end(); ++i) {
       old_tag = *i;
       for (t = tags[0]; t != NULL && !found_new_tag; t=tags[++tag_count]) {

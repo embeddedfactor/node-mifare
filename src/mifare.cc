@@ -54,16 +54,17 @@ Handle<Value> getReader(const Arguments& args) {
 #ifndef USE_LIBNFC
   res = pcsc_list_devices(context, &reader_names);
   if(res != SCARD_S_SUCCESS || reader_names[0] == '\0') {
+    //delete [] reader_names;
+    ThrowException(Exception::Error(String::New("Unable to list readers")));
+    return scope.Close(Undefined());
+  }
 #else
   numDevices = nfc_list_devices(context, reader_names, MAX_READERS);
   if(numDevices == 0) {
-    std::cout << "No NFC devices found!" << std::endl;
+    return scope.Close(readers);
+  }
     // open any device
 #endif
-    //delete [] reader_names;
-    ThrowException(Exception::TypeError(String::New("Unable to list readers")));
-    return scope.Close(Undefined());
-  }
 
   // Clean before use
   for(std::vector<reader_data *>::iterator iter;iter!=readers_data.end();iter++) {
@@ -127,7 +128,7 @@ void init(Handle<Object> exports) {
   nfc_init(&context);
 #endif
   if(!context) {
-    ThrowException(Exception::TypeError(String::New("Cannot establish context")));
+    ThrowException(Exception::Error(String::New("Cannot establish context")));
     return; 
   }
 

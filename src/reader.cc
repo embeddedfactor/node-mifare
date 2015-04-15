@@ -160,10 +160,9 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
       for (t = tags[0]; t != NULL && !found_new_tag; t=tags[++tag_count]) {
         old_tag_uid = freefare_get_tag_uid(old_tag);
         t_uid = freefare_get_tag_uid(t);
-        if(len = strlen(old_tag_uid) == strlen(t_uid)) {
-          if(0 != memcmp(old_tag_uid, t_uid, strlen(old_tag_uid))) {
-            found_new_tag = true;
-          }
+        std::cout << "comparing tags " << old_tag_uid << ", " << t_uid << std::endl;
+        if(0 != strcmp(old_tag_uid, t_uid)) {
+          found_new_tag = true;
         }
         free(old_tag_uid);
         free(t_uid);

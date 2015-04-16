@@ -28,6 +28,8 @@
 using namespace v8;
 using namespace node;
 
+
+
 struct reader_data {
   /**
    * Create a new reader status instance
@@ -65,7 +67,7 @@ struct reader_data {
 #else
   nfc_context *context;
   int last_err;
-  std::vector<MifareTag> last_tags;
+  std::vector< char* > last_uids;
   nfc_device *device;
 #endif
   Persistent<Function> callback;

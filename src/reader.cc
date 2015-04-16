@@ -129,24 +129,27 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   if (!data->device) {
     reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("unavailable")));
     const unsigned argc = 3;
-    Local<Value> err = Exception::Error(String::New("No NFC device associated with this reader"));
+    Local<Value> err = String::New("No NFC device associated with this reader");
     Local<Value> argv[argc] = {
       Local<Value>::New(err),
       Local<Value>::New(reader),
       Local<Value>::New(Undefined())
     };
     data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+    return;
   }
 
   MifareTag *tags = freefare_get_tags(data->device);
   int err = nfc_device_get_last_error(data->device);
   // return on all but success cases
   // for succes, we have to distinghish between empty and present
-  if (err != NFC_SUCCESS && err == data->last_err)
+  if (err != NFC_SUCCESS && err == data->last_err) {
+    freefare_free_tags(tags);
+    scope.Close(Undefined());
     return;
+  }
   if (err == NFC_SUCCESS && tags != NULL && tags[0] != NULL) { // found more than 0 tags -> present
-    std::cout << "Found tags" << std::endl;
-    data->last_err = NFC_SUCCESS;
+    data->last_err = err;
 
     int tag_count = 0;
     MifareTag t = NULL;
@@ -155,41 +158,40 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     char *old_tag_uid, *t_uid;
     // we definetly found new tags if previous search did not get any
     // else we have to compare in the loop below
-    bool found_new_tag = data->last_tags.size() == 0;
-    for(std::vector<MifareTag>::const_iterator i = data->last_tags.begin(); !found_new_tag && i != data->last_tags.end(); ++i) {
-      old_tag = *i;
+    bool found_new_tag = data->last_uids.size() == 0;
+    for(std::vector<char *>::const_iterator i = data->last_uids.begin(); !found_new_tag && i != data->last_uids.end(); ++i) {
+      old_tag_uid = *i;
       for (t = tags[0]; t != NULL && !found_new_tag; t=tags[++tag_count]) {
-        old_tag_uid = freefare_get_tag_uid(old_tag);
         t_uid = freefare_get_tag_uid(t);
-        std::cout << "comparing tags " << old_tag_uid << ", " << t_uid << std::endl;
         if(0 != strcmp(old_tag_uid, t_uid)) {
           found_new_tag = true;
         }
-        free(old_tag_uid);
         free(t_uid);
       }
     }
 
+    // XXX: What happens when an existing tag get's a new uid?!
+    // this would trigger a freefare_free_tags here.
     if(!found_new_tag) {
-      std::cout << "No new tag" << std::endl;
+      scope.Close(Undefined());
       return;
     } else {
-      std::cout << "NEW tag" << std::endl;
+      for(std::vector<char *>::iterator i = data->last_uids.begin(); i != data->last_uids.end(); ++i){
+        free(*i);
+        *i = NULL;
+      }
     }
-
+    data->last_uids.clear();
     reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("present")));
-
-    // clear lasts_tags
-    data->last_tags.clear();
-    for(std::vector<MifareTag>::iterator i = data->last_tags.begin(); i != data->last_tags.end(); ++i) {
-    }
 
     t = NULL;
     tag_count = 0;
+    bool tags_used = false;
     for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
-      data->last_tags.push_back(t);
+      data->last_uids.push_back(freefare_get_tag_uid(t));
       // TODO: do something with the tag
       if(freefare_get_tag_type(t) == DESFIRE) {
+        tags_used = true;
 
         card_data *cardData = new card_data(data);
         cardData->tag = t;
@@ -217,22 +219,22 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
           Local<Value>::New(card)
         };
         data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
-
         //delete cardData;
       }
     }
+    if(!tags_used) {
+      freefare_free_tags(tags);
+    }
   } else { // not tag found
-    if(err == NFC_SUCCESS)
-      if(data->last_tags.size() == 0) // empty -> empty, no change
-        return;
-
     data->last_err = err;
-    std::cout << "ERRRO is now " << err << std::endl;
-    if (err == NFC_SUCCESS) { // present -> empty
-      // clear command
-      nfc_abort_command(data->device);
-      // clear last tags
-      data->last_tags.clear();
+    if (err == NFC_SUCCESS) {
+      if(data->last_uids.size() == 0) {
+      // empty -> empty, no change
+        scope.Close(Undefined());
+        return;
+      }
+      // present -> empty
+      data->last_uids.clear();
       status = make_status("empty");
     } else if(err == NFC_EIO) {
       status = make_status("ioerror");
@@ -277,6 +279,8 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     };
     data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
   }
+  scope.Close(Undefined());
+  return;
 }
 #endif // USE_LIBNFC
 

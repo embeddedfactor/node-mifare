@@ -869,7 +869,9 @@ Handle<Value> CardFree(const Arguments& args) {
     return scope.Close(errorResult(0x12321, "This function takes no arguments"));
   }
   
-  freefare_free_tags(data->tags);
+  if(data->tags) {
+    freefare_free_tags(data->tags);
+  }
   delete data;
   data = NULL;
   return scope.Close(Undefined());

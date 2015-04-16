@@ -11,13 +11,19 @@
 #include <iostream>
 #include <cstring>
 
-#ifdef __APPLE__
+#ifndef USE_LIBNFC
+#if defined(__APPLE__) || defined(__linux__)
 #include <PCSC/winscard.h>
 #include <PCSC/wintypes.h>
 #else
 #include <winscard.h>
 #endif
 #include <freefare_pcsc.h>
+#else // USE_LIBNFC
+#include <nfc/nfc.h>
+#include <freefare_nfc.h>
+#endif // USE_LIBNFC
+
 
 /**
  * Get Names of the Readers connected to the computer

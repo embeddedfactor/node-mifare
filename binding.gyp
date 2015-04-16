@@ -3,6 +3,13 @@
     {
       "target_name": "node_mifare",
       "dependencies": ["node_modules/libfreefare-pcsc/binding.gyp:freefare_pcsc"],
+      "conditions": [
+        ['OS=="linux"', {
+          "defines": [
+            "USE_LIBNFC",
+          ],
+        }]
+      ],
       "sources": [
         "src/mifare.cc",
         "src/reader.cc",

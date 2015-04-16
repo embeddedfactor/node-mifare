@@ -8,13 +8,6 @@
 #include <iostream>
 #include <cstring>
 
-#ifdef __APPLE__
-#include <PCSC/winscard.h>
-#include <PCSC/wintypes.h>
-#else
-#include <winscard.h>
-#endif
-#include <freefare_pcsc.h>
 
 #include "reader.h"
 
@@ -24,7 +17,16 @@ using namespace node;
 /**
  * plugin global secure card context
  **/
+#ifndef USE_LIBNFC
 static pcsc_context *context;
+#else
+#include <signal.h>
+static nfc_context *context = NULL;
+void deinitialize_nfc_context(int p) {
+  if (context)
+    nfc_exit(context);
+}
+#endif
 static std::vector<reader_data *> readers_data;
 
 /**
@@ -33,8 +35,14 @@ static std::vector<reader_data *> readers_data;
  * @return An Array of Strings with reader names
  **/
 Handle<Value> getReader(const Arguments& args) {
+#ifndef USE_LIBNFC
   LONG res;
   char *reader_names;
+#else
+  size_t numDevices;
+  const size_t MAX_READERS = 16;
+  nfc_connstring reader_names[MAX_READERS];
+#endif
   char *reader_iter = NULL;
   int   reader_count = 0;
 
@@ -47,29 +55,56 @@ Handle<Value> getReader(const Arguments& args) {
   }
 
   // Allocate buffer. We assume autoallocate is not present (on Mac OS X anyway)
+  readers = Persistent<Object>::New(Object::New());
+#ifndef USE_LIBNFC
   res = pcsc_list_devices(context, &reader_names);
   if(res != SCARD_S_SUCCESS || reader_names[0] == '\0') {
-    //readers = Persistent<Array>::New(Array::New(0));
-    readers = Persistent<Object>::New(Object::New());
     //delete [] reader_names;
-    ThrowException(Exception::TypeError(String::New("Unable to list readers")));
+    ThrowException(Exception::Error(String::New("Unable to list readers")));
     return scope.Close(Undefined());
   }
+#else
+  numDevices = nfc_list_devices(context, reader_names, MAX_READERS);
+  if(numDevices == 0) {
+    return scope.Close(readers);
+  }
+#endif
 
   // Clean before use
   for(std::vector<reader_data *>::iterator iter;iter!=readers_data.end();iter++) {
     reader_data *data = *iter;
+#ifndef USE_LIBNFC
     delete [] data->state.szReader;
+#else
+    if (data->device)
+      nfc_close(data->device);
+#endif
     delete data;
   }
   readers_data.clear();
-  readers = Persistent<Object>::New(Object::New());
 
   // Get number of readers from null separated string
+#ifndef USE_LIBNFC
   reader_iter = reader_names;
   while(*reader_iter != '\0') {
-    // Node Object:
     readers_data.push_back(new reader_data(reader_iter, context));
+#else
+  reader_iter = reader_names[0];
+  char *names_end = reader_names[0] + (MAX_READERS * sizeof(nfc_connstring));
+  while(reader_iter <= names_end) {
+    // see if we can claim it
+    nfc_device *dev = NULL;
+    dev = nfc_open(context, reader_iter);
+    if (dev == NULL) {
+      // XXX: failed to open connstring
+      reader_iter += sizeof(nfc_connstring);
+      continue;
+    }
+    std::cout << "Found device: " << nfc_device_get_name(dev) << std::endl;
+    nfc_close(dev);
+    readers_data.push_back(new reader_data(reader_iter, context, NULL));
+#endif
+    // Node Object:
     Local<External> data = Local<External>::New(External::New(readers_data.back()));
     Local<Object> reader = Local<Object>::New(Object::New());
     reader->Set(String::NewSymbol("name"), String::New(reader_iter));
@@ -78,8 +113,12 @@ Handle<Value> getReader(const Arguments& args) {
     reader->Set(String::NewSymbol("release"), FunctionTemplate::New(ReaderRelease)->GetFunction());
     reader->SetHiddenValue(String::NewSymbol("data"), data);
     readers->Set(String::NewSymbol(reader_iter), reader);
+#ifndef USE_LIBNFC
     reader_iter += strlen(reader_iter)+1;
     reader_count++;
+#else
+    reader_iter += sizeof(nfc_connstring);
+#endif
   }
   //delete [] reader_names;
 
@@ -90,10 +129,21 @@ Handle<Value> getReader(const Arguments& args) {
  * Node.js initialization function
  * @param exports The Commonjs module exports object
  **/
+
 void init(Handle<Object> exports) {
+#ifndef USE_LIBNFC
   pcsc_init(&context);
+#else
+  nfc_init(&context);
+  if (signal(SIGTERM, deinitialize_nfc_context) != SIG_IGN)
+    signal(SIGABRT, deinitialize_nfc_context);
+  if (signal(SIGHUP, deinitialize_nfc_context) != SIG_IGN)
+    signal(SIGHUP, deinitialize_nfc_context);
+  if (signal(SIGINT, deinitialize_nfc_context) != SIG_IGN)
+    signal(SIGINT, deinitialize_nfc_context);
+#endif
   if(!context) {
-    ThrowException(Exception::TypeError(String::New("Cannot establish context")));
+    ThrowException(Exception::Error(String::New("Cannot establish context")));
     return; 
   }
 

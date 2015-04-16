@@ -1,9 +1,12 @@
 // Copyright 2013, Rolf Meyer
 // See LICENCE for more information
 
+#include <string.h>
+
 #include "reader.h"
 #include "desfire.h"
 
+#ifndef USE_LIBNFC
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   HandleScope scope;
   reader_data *data = static_cast<reader_data *>(handle->data);
@@ -11,7 +14,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   DWORD event;
   Local<String> status;
   Local<Object> reader = Local<Object>::New(data->self);
-  reader->Set(String::NewSymbol("name"), String::New(data->state.szReader));
+  reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
 
   res = SCardGetStatusChange(data->context->context, 1, &data->state, 1);
   if(res == SCARD_S_SUCCESS) {
@@ -113,6 +116,173 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
       data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
   }
 }
+#else // USE_LIBNFC
+inline Local<String> make_status(const char* const s) {
+  return v8::String::New(s);
+}
+void reader_timer_callback(uv_timer_t *handle, int timer_status) {
+  HandleScope scope;
+  reader_data *data = static_cast<reader_data *>(handle->data);
+  Local<String> status;
+  Local<Object> reader = Local<Object>::New(data->self);
+  reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
+  if (!data->device) {
+    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("unavailable")));
+    const unsigned argc = 3;
+    Local<Value> err = String::New("No NFC device associated with this reader");
+    Local<Value> argv[argc] = {
+      Local<Value>::New(err),
+      Local<Value>::New(reader),
+      Local<Value>::New(Undefined())
+    };
+    data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+    return;
+  }
+
+  MifareTag *tags = freefare_get_tags(data->device);
+  int err = nfc_device_get_last_error(data->device);
+  // return on all but success cases
+  // for succes, we have to distinghish between empty and present
+  if (err != NFC_SUCCESS && err == data->last_err) {
+    freefare_free_tags(tags);
+    scope.Close(Undefined());
+    return;
+  }
+  if (err == NFC_SUCCESS && tags != NULL && tags[0] != NULL) { // found more than 0 tags -> present
+    data->last_err = err;
+
+    int tag_count = 0;
+    MifareTag t = NULL;
+    MifareTag old_tag;
+    size_t len;
+    char *old_tag_uid, *t_uid;
+    // we definetly found new tags if previous search did not get any
+    // else we have to compare in the loop below
+    bool found_new_tag = data->last_uids.size() == 0;
+    for(std::vector<char *>::const_iterator i = data->last_uids.begin(); !found_new_tag && i != data->last_uids.end(); ++i) {
+      old_tag_uid = *i;
+      for (t = tags[0]; t != NULL && !found_new_tag; t=tags[++tag_count]) {
+        t_uid = freefare_get_tag_uid(t);
+        if(0 != strcmp(old_tag_uid, t_uid)) {
+          found_new_tag = true;
+        }
+        free(t_uid);
+      }
+    }
+
+    // XXX: What happens when an existing tag get's a new uid?!
+    // this would trigger a freefare_free_tags here.
+    if(!found_new_tag) {
+      scope.Close(Undefined());
+      return;
+    } else {
+      for(std::vector<char *>::iterator i = data->last_uids.begin(); i != data->last_uids.end(); ++i){
+        free(*i);
+        *i = NULL;
+      }
+    }
+    data->last_uids.clear();
+    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("present")));
+
+    t = NULL;
+    tag_count = 0;
+    bool tags_used = false;
+    for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
+      data->last_uids.push_back(freefare_get_tag_uid(t));
+      // TODO: do something with the tag
+      if(freefare_get_tag_type(t) == DESFIRE) {
+        tags_used = true;
+
+        card_data *cardData = new card_data(data);
+        cardData->tag = t;
+        cardData->tags = tags;
+        Local<Object> card = Object::New();
+        card->Set(String::NewSymbol("type"), String::New("desfire"));
+        card->SetHiddenValue(String::NewSymbol("data"), External::Wrap(cardData));
+
+        card->Set(String::NewSymbol("info"), FunctionTemplate::New(CardInfo)->GetFunction());
+        card->Set(String::NewSymbol("masterKeyInfo"), FunctionTemplate::New(CardMasterKeyInfo)->GetFunction());
+        card->Set(String::NewSymbol("keyVersion"), FunctionTemplate::New(CardKeyVersion)->GetFunction());
+        card->Set(String::NewSymbol("freeMemory"), FunctionTemplate::New(CardFreeMemory)->GetFunction());
+        card->Set(String::NewSymbol("setKey"), FunctionTemplate::New(CardSetKey)->GetFunction());
+        card->Set(String::NewSymbol("setAid"), FunctionTemplate::New(CardSetAid)->GetFunction());
+        card->Set(String::NewSymbol("format"), FunctionTemplate::New(CardFormat)->GetFunction());
+        card->Set(String::NewSymbol("createNdef"), FunctionTemplate::New(CardCreateNdef)->GetFunction());
+        card->Set(String::NewSymbol("readNdef"), FunctionTemplate::New(CardReadNdef)->GetFunction());
+        card->Set(String::NewSymbol("writeNdef"), FunctionTemplate::New(CardWriteNdef)->GetFunction());
+        card->Set(String::NewSymbol("free"), FunctionTemplate::New(CardFree)->GetFunction());
+
+        const unsigned argc = 3;
+        Local<Value> argv[argc] = {
+          Local<Value>::New(Undefined()),
+          Local<Value>::New(reader),
+          Local<Value>::New(card)
+        };
+        data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+        //delete cardData;
+      }
+    }
+    if(!tags_used) {
+      freefare_free_tags(tags);
+    }
+  } else { // not tag found
+    data->last_err = err;
+    if (err == NFC_SUCCESS) {
+      if(data->last_uids.size() == 0) {
+      // empty -> empty, no change
+        scope.Close(Undefined());
+        return;
+      }
+      // present -> empty
+      data->last_uids.clear();
+      status = make_status("empty");
+    } else if(err == NFC_EIO) {
+      status = make_status("ioerror");
+    } else if(err == NFC_EINVARG) {
+      // XXX: should not happen
+    } else if(err == NFC_EDEVNOTSUPP) {
+      status = make_status("invalid");
+    } else if(err == NFC_ENOTSUCHDEV) {
+      status = make_status("invalid");
+    } else if(err == NFC_ENOTIMPL) {
+      status = make_status("invalid");
+    } else if(err == NFC_EOVFLOW) {
+      status = make_status("overflow");
+    } else if(err == NFC_ETIMEOUT) {
+      status = make_status("timeout");
+    } else if(err == NFC_EOPABORTED) {
+      status = make_status("aborted");
+    } else if(err == NFC_ETGRELEASED) {
+      status = make_status("released");
+    } else if(err == NFC_ERFTRANS) {
+      status = make_status("error");
+    } else if(err == NFC_EMFCAUTHFAIL) {
+      status = make_status("authfail");
+    } else if(err == NFC_ESOFT) {
+      status = make_status("error");
+    } else if(err == NFC_ECHIP){
+      status = make_status("brokenchip");
+    }
+    else
+    {
+      status = make_status("unknown");
+    }
+    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(status));
+    /*
+    Came here because err changed. So we call the callback function
+    */
+    const unsigned argc = 3;
+    Local<Value> argv[argc] = {
+      Local<Value>::New(Undefined()),
+      Local<Value>::New(reader),
+      Local<Value>::New(Undefined())
+    };
+    data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+  }
+  scope.Close(Undefined());
+  return;
+}
+#endif // USE_LIBNFC
 
 Handle<Value> ReaderRelease(const Arguments &args) {
   HandleScope scope;
@@ -126,7 +296,12 @@ Handle<Value> ReaderRelease(const Arguments &args) {
   //if(data->timer) {
     uv_timer_stop(&data->timer);
   //}
+#ifndef USE_LIBNFC
   SCardReleaseContext(data->context->context);
+#else
+  if (data->device)
+    nfc_close(data->device);
+#endif
   data->callback.Dispose();
   data->callback.Clear();
   data->self.Dispose();
@@ -143,6 +318,12 @@ Handle<Value> ReaderListen(const Arguments& args) {
     return scope.Close(Undefined());
   }
 
+#ifndef USE_LIBNFC
+#else
+  if (data->context && data->device == NULL)
+    data->device = nfc_open(data->context, data->name.c_str());
+
+#endif
   data->callback = Persistent<Function>::New(Local<Function>::Cast(args[0]));
   data->self = Persistent<Object>::New(self);
 
@@ -169,6 +350,7 @@ Handle<Value> ReaderListen(const Arguments& args) {
 Handle<Value> ReaderSetLed(const Arguments& args) {
   HandleScope scope;
   Local<Object> self = args.This();
+#ifndef USE_LIBNFC
   const uint32_t sSize = 9;
   uint8_t sBuffer[sSize] = {0xFF, 0x00, 0x40, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00};
   uint8_t rBuffer[262];
@@ -216,6 +398,7 @@ Handle<Value> ReaderSetLed(const Arguments& args) {
   std::cout << "retCode: " << std::hex << retCode << std::endl;
   rv = SCardDisconnect(hCard, SCARD_LEAVE_CARD);
 
+#endif
   return scope.Close(args.This()); 
 }
 

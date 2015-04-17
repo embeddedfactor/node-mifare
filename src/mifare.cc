@@ -135,12 +135,6 @@ void init(Handle<Object> exports) {
   pcsc_init(&context);
 #else
   nfc_init(&context);
-  if (signal(SIGTERM, deinitialize_nfc_context) != SIG_IGN)
-    signal(SIGABRT, deinitialize_nfc_context);
-  if (signal(SIGHUP, deinitialize_nfc_context) != SIG_IGN)
-    signal(SIGHUP, deinitialize_nfc_context);
-  if (signal(SIGINT, deinitialize_nfc_context) != SIG_IGN)
-    signal(SIGINT, deinitialize_nfc_context);
 #endif
   if(!context) {
     ThrowException(Exception::Error(String::New("Cannot establish context")));

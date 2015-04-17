@@ -52,12 +52,12 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         // Establishes a connection to a smart card contained by a specific reader.
         MifareTag *tags = freefare_get_tags_pcsc(data->context, data->state.szReader);
         // XXX: With PCSC tags is always length 2 with {tag, NULL} we assume this is allways the case here!!!!
+        smart_tags *st = new smart_tags(tags);
         for(int i = 0; (!res) && tags[i]; i++) {
           if(tags[i] && freefare_get_tag_type(tags[i]) == DESFIRE) {
 
-            card_data *cardData = new card_data(data);
+            card_data *cardData = new card_data(data, st);
             cardData->tag = tags[i];
-            cardData->tags = tags;
             Local<Object> card = Object::New();
             card->Set(String::NewSymbol("type"), String::New("desfire"));
             card->SetHiddenValue(String::NewSymbol("data"), External::Wrap(cardData));
@@ -151,7 +151,6 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   if (err == NFC_SUCCESS && tags != NULL && tags[0] != NULL) { // found more than 0 tags -> present
     data->last_err = err;
 
-    int tag_count = 0;
     MifareTag t = NULL;
     MifareTag old_tag;
     size_t len;
@@ -160,11 +159,13 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     // else we have to compare in the loop below
     bool found_new_tag = data->last_uids.size() == 0;
     for(std::vector<char *>::const_iterator i = data->last_uids.begin(); !found_new_tag && i != data->last_uids.end(); ++i) {
+      found_new_tag = true; // assume tag is new
       old_tag_uid = *i;
-      for (t = tags[0]; t != NULL && !found_new_tag; t=tags[++tag_count]) {
+      int tag_count = 0;
+      for (t = tags[0]; t != NULL && found_new_tag; t=tags[++tag_count]) {
         t_uid = freefare_get_tag_uid(t);
-        if(0 != strcmp(old_tag_uid, t_uid)) {
-          found_new_tag = true;
+        if(0 == strcmp(old_tag_uid, t_uid)) {
+          found_new_tag = false; // unless it matches a known uid
         }
         free(t_uid);
       }
@@ -185,17 +186,17 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("present")));
 
     t = NULL;
-    tag_count = 0;
+    int tag_count = 0;
     bool tags_used = false;
+    smart_tags *st = new smart_tags(tags);
     for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
       data->last_uids.push_back(freefare_get_tag_uid(t));
       // TODO: do something with the tag
       if(freefare_get_tag_type(t) == DESFIRE) {
         tags_used = true;
 
-        card_data *cardData = new card_data(data);
+        card_data *cardData = new card_data(data, st);
         cardData->tag = t;
-        cardData->tags = tags;
         Local<Object> card = Object::New();
         card->Set(String::NewSymbol("type"), String::New("desfire"));
         card->SetHiddenValue(String::NewSymbol("data"), External::Wrap(cardData));

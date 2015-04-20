@@ -53,11 +53,11 @@ struct reader_data {
     this->state.szReader = this->name.c_str();
     this->state.dwCurrentState = SCARD_STATE_UNAWARE;
     this->state.pvUserData = this;
-    pthread_mutex_init(&this->mDevice, NULL)
 #else
     this->context = context;
     this->last_err = NFC_ENOTSUCHDEV;
     this->device = device;
+    pthread_mutex_init(&this->mDevice, NULL);
 #endif
   }
 #ifndef USE_LIBNFC

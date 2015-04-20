@@ -141,6 +141,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 
   MifareTag *tags = freefare_get_tags(data->device);
   int err = nfc_device_get_last_error(data->device);
+  nfc_device_set_property_bool(data->device, NP_INFINITE_SELECT, false);
   // return on all but success cases
   // for succes, we have to distinghish between empty and present
   if (err != NFC_SUCCESS && err == data->last_err) {

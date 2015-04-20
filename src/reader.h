@@ -23,6 +23,7 @@
 #include <freefare_nfc.h>
 #endif // USE_LIBNFC
 #include <cstdlib>
+#include <pthread.h>
 
 
 using namespace v8;
@@ -52,12 +53,19 @@ struct reader_data {
     this->state.szReader = this->name.c_str();
     this->state.dwCurrentState = SCARD_STATE_UNAWARE;
     this->state.pvUserData = this;
+    pthread_mutex_init(&this->mDevice, NULL)
 #else
     this->context = context;
     this->last_err = NFC_ENOTSUCHDEV;
     this->device = device;
 #endif
   }
+#ifndef USE_LIBNFC
+#else
+  ~reader_data() {
+    pthread_mutex_destroy(&this->mDevice);
+  }
+#endif // ! USE_LIBNFC
 
   std::string name;
   uv_timer_t timer;
@@ -69,6 +77,7 @@ struct reader_data {
   int last_err;
   std::vector< char* > last_uids;
   nfc_device *device;
+  pthread_mutex_t mDevice;
 #endif
   Persistent<Function> callback;
   Persistent<Object> self;

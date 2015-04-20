@@ -9,6 +9,7 @@
 #include <iostream>
 #include <cstring>
 
+#if ! defined(USE_LIBNFC)
 #if defined(__APPLE__) || defined(__linux__)
 #include <PCSC/winscard.h>
 #include <PCSC/wintypes.h>
@@ -16,6 +17,9 @@
 #include <winscard.h>
 #endif
 #include <freefare_pcsc.h>
+#else
+#include <freefare_nfc.h>
+#endif // ! USE_LIBNFC
 
 #include "reader.h"
 #include <cstdlib>

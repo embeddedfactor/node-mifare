@@ -20,12 +20,8 @@ using namespace node;
 #ifndef USE_LIBNFC
 static pcsc_context *context;
 #else
-#include <signal.h>
 static nfc_context *context = NULL;
-void deinitialize_nfc_context(int p) {
-  if (context)
-    nfc_exit(context);
-}
+#include <pthread.h>
 #endif
 static std::vector<reader_data *> readers_data;
 
@@ -76,8 +72,10 @@ Handle<Value> getReader(const Arguments& args) {
 #ifndef USE_LIBNFC
     delete [] data->state.szReader;
 #else
+    pthread_mutex_lock(&data->mDevice);
     if (data->device)
       nfc_close(data->device);
+    pthread_mutex_unlock(&data->mDevice);
 #endif
     delete data;
   }
@@ -100,7 +98,6 @@ Handle<Value> getReader(const Arguments& args) {
       reader_iter += sizeof(nfc_connstring);
       continue;
     }
-    std::cout << "Found device: " << nfc_device_get_name(dev) << std::endl;
     nfc_close(dev);
     readers_data.push_back(new reader_data(reader_iter, context, NULL));
 #endif

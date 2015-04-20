@@ -17,6 +17,10 @@ Handle<Value> CardInfo(const Arguments& args) {
   if(args.Length()!=0) {
     return scope.Close(errorResult(0x12302, "This function takes no arguments"));
   }
+#if ! defined(USE_LIBNFC)
+#else
+  pthread_mutex_lock(&data->reader->mDevice);
+#endif
   res = mifare_desfire_connect(data->tag);
   if(res) {
     return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
@@ -28,6 +32,10 @@ Handle<Value> CardInfo(const Arguments& args) {
     return scope.Close(errorResult(0x12304, freefare_strerror(data->tag)));
   }
   mifare_desfire_disconnect(data->tag);
+#if ! defined(USE_LIBNFC)
+#else
+  pthread_mutex_unlock(&data->reader->mDevice);
+#endif
 
   Local<Array> uid = Local<Array>::New(Array::New(7));
   for(unsigned int j=0; j<7; j++) {
@@ -78,7 +86,11 @@ Handle<Value> CardInfo(const Arguments& args) {
 }
 
 Handle<Value> CardMasterKeyInfo(const Arguments& args) {
+#if ! defined(USE_LIBNFC)
   LONG res;
+#else
+  size_t res;
+#endif
   uint8_t settings;
   uint8_t max_keys;
   HandleScope scope;
@@ -169,7 +181,11 @@ Handle<Value> CardKeyVersion(const Arguments& args) {
 }
 
 Handle<Value> CardFreeMemory(const Arguments& args) {
+#if ! defined(USE_LIBNFC)
   LONG res;
+#else
+  size_t res;
+#endif
   uint32_t size;
   HandleScope scope;
   Local<Object> self = args.This();

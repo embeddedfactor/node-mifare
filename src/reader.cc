@@ -6,7 +6,8 @@
 #include "reader.h"
 #include "desfire.h"
 
-#ifndef USE_LIBNFC
+
+#if ! defined(USE_LIBNFC)
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   HandleScope scope;
   reader_data *data = static_cast<reader_data *>(handle->data);
@@ -52,11 +53,10 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         // Establishes a connection to a smart card contained by a specific reader.
         MifareTag *tags = freefare_get_tags_pcsc(data->context, data->state.szReader);
         // XXX: With PCSC tags is always length 2 with {tag, NULL} we assume this is allways the case here!!!!
-        smart_tags *st = new smart_tags(tags);
         for(int i = 0; (!res) && tags[i]; i++) {
           if(tags[i] && freefare_get_tag_type(tags[i]) == DESFIRE) {
 
-            card_data *cardData = new card_data(data, st);
+            card_data *cardData = new card_data(data, tags);
             cardData->tag = tags[i];
             Local<Object> card = Object::New();
             card->Set(String::NewSymbol("type"), String::New("desfire"));
@@ -126,7 +126,10 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   Local<String> status;
   Local<Object> reader = Local<Object>::New(data->self);
   reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
+  
+  uv_mutex_lock(&data->mDevice);
   if (!data->device) {
+    uv_mutex_unlock(&data->mDevice);
     reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("unavailable")));
     const unsigned argc = 3;
     Local<Value> err = String::New("No NFC device associated with this reader");
@@ -142,6 +145,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   MifareTag *tags = freefare_get_tags(data->device);
   int err = nfc_device_get_last_error(data->device);
   nfc_device_set_property_bool(data->device, NP_INFINITE_SELECT, false);
+  uv_mutex_unlock(&data->mDevice);
   // return on all but success cases
   // for succes, we have to distinghish between empty and present
   if (err != NFC_SUCCESS && err == data->last_err) {
@@ -301,8 +305,10 @@ Handle<Value> ReaderRelease(const Arguments &args) {
 #ifndef USE_LIBNFC
   SCardReleaseContext(data->context->context);
 #else
+  uv_mutex_lock(&data->mDevice);
   if (data->device)
     nfc_close(data->device);
+  uv_mutex_unlock(&data->mDevice);
 #endif
   data->callback.Dispose();
   data->callback.Clear();
@@ -322,8 +328,10 @@ Handle<Value> ReaderListen(const Arguments& args) {
 
 #ifndef USE_LIBNFC
 #else
+  uv_mutex_lock(&data->mDevice);
   if (data->context && data->device == NULL)
     data->device = nfc_open(data->context, data->name.c_str());
+  uv_mutex_unlock(&data->mDevice);
 
 #endif
   data->callback = Persistent<Function>::New(Local<Function>::Cast(args[0]));

@@ -9,6 +9,7 @@
 #include <iostream>
 #include <cstring>
 
+#if ! defined(USE_LIBNFC)
 #if defined(__APPLE__) || defined(__linux__)
 #include <PCSC/winscard.h>
 #include <PCSC/wintypes.h>
@@ -16,42 +17,56 @@
 #include <winscard.h>
 #endif
 #include <freefare_pcsc.h>
+#else
+#include <freefare_nfc.h>
+#endif // ! USE_LIBNFC
 
 #include "reader.h"
 #include <cstdlib>
-#include <pthread.h>
 
 using namespace v8;
 using namespace node;
 
+#if ! defined(USE_LIBNFC)
+#else
 struct smart_tags {
   smart_tags(MifareTag *tags) {
     this->tags = tags;
     this->cards_using_this_instance = 0;
-    pthread_mutex_init(&this->m, NULL);
+    uv_mutex_init(&this->m);
   };
   ~smart_tags() {
     freefare_free_tags(this->tags);
-    pthread_mutex_destroy(&this->m);
+    uv_mutex_destroy(&this->m);
   };
   void lock() {
-    pthread_mutex_lock(&this->m);
+    uv_mutex_lock(&this->m);
   };
   void unlock() {
-    pthread_mutex_unlock(&this->m);
+    uv_mutex_unlock(&this->m);
   };
   unsigned int cards_using_this_instance;
   MifareTag *tags;
-  pthread_mutex_t m;
+  uv_mutex_t m;
 };
+#endif
 
 struct card_data {
-  card_data(reader_data *reader, smart_tags *t) : reader(reader) {
+  card_data(reader_data *reader,
+#if ! defined(USE_LIBNFC)
+    MifareTag *t
+#else
+    smart_tags *t
+#endif
+    ) : reader(reader) {
     uint8_t null[8] = {0,0,0,0,0,0,0,0};
     key = mifare_desfire_des_key_new(null);
     aid = mifare_desfire_aid_new(0x000001);
     this->tags = t;
+#if ! defined(USE_LIBNFC)
+#else
     t->cards_using_this_instance++;
+#endif
   }
   ~card_data() {
     if(key) {
@@ -63,18 +78,26 @@ struct card_data {
       aid = NULL;
     }
     if(this->tags) {
+#if ! defined(USE_LIBNFC)
+      freefare_free_tags(this->tags);
+#else
       this->tags->lock();
       int tags_ref_count = --this->tags->cards_using_this_instance;
       this->tags->unlock();
-      if(tags_ref_count == 0){
+      if(tags_ref_count == 0) {
         delete this->tags;
       }
+#endif
     }
   }
   
   reader_data *reader;
   MifareTag tag;
+#if ! defined(USE_LIBNFC)
+  MifareTag *tags;
+#else
   smart_tags *tags;
+#endif
   MifareDESFireKey key;
   MifareDESFireAID aid;
 };

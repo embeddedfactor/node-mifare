@@ -4,6 +4,20 @@
 #include "desfire.h"
 #include "utils.h"
 
+#if ! defined(USE_LIBNFC)
+static inline void lock_device(reader_data *r) {}
+
+static inline void unlock_device(reader_data *r) {}
+#else
+static inline void lock_device(reader_data *r) {
+  uv_mutex_lock(&r->mDevice);
+}
+
+static inline void unlock_device(reader_data *r) {
+  uv_mutex_unlock(&r->mDevice);
+}
+#endif
+
 Handle<Value> CardInfo(const Arguments& args) {
   int res;
   HandleScope scope;
@@ -17,17 +31,21 @@ Handle<Value> CardInfo(const Arguments& args) {
   if(args.Length()!=0) {
     return scope.Close(errorResult(0x12302, "This function takes no arguments"));
   }
+  lock_device(data->reader);
   res = mifare_desfire_connect(data->tag);
   if(res) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
   }
 
   struct mifare_desfire_version_info info;
   res = mifare_desfire_get_version(data->tag, &info);
   if(res) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12304, freefare_strerror(data->tag)));
   }
   mifare_desfire_disconnect(data->tag);
+  unlock_device(data->reader);
 
   Local<Array> uid = Local<Array>::New(Array::New(7));
   for(unsigned int j=0; j<7; j++) {
@@ -78,7 +96,11 @@ Handle<Value> CardInfo(const Arguments& args) {
 }
 
 Handle<Value> CardMasterKeyInfo(const Arguments& args) {
+#if ! defined(USE_LIBNFC)
   LONG res;
+#else
+  int res;
+#endif
   uint8_t settings;
   uint8_t max_keys;
   HandleScope scope;
@@ -91,8 +113,10 @@ Handle<Value> CardMasterKeyInfo(const Arguments& args) {
   if(args.Length()!=0) {
     return scope.Close(errorResult(0x12306, "This function takes no arguments"));
   }
+  lock_device(data->reader);
   res = mifare_desfire_connect(data->tag);
   if(res < 0) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
   }
 
@@ -106,15 +130,21 @@ Handle<Value> CardMasterKeyInfo(const Arguments& args) {
     key->Set(String::NewSymbol("maxKeys"), Integer::New((max_keys)));
   
     mifare_desfire_disconnect(data->tag);
+
+    unlock_device(data->reader);
     return scope.Close(key); 
   } else if (AUTHENTICATION_ERROR == mifare_desfire_last_picc_error(data->tag)) {
     Local<String> key = String::New("LOCKED");
   
     mifare_desfire_disconnect(data->tag);
+
+    unlock_device(data->reader);
     return scope.Close(key); 
   } else {
   
     mifare_desfire_disconnect(data->tag);
+
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12307, freefare_strerror(data->tag)));
   }
 }
@@ -132,13 +162,16 @@ Handle<Value> CardName(const Arguments& args) {
     return scope.Close(errorResult(0x12302, "This function takes no arguments"));
   }
 
+  lock_device(data->reader);
   res = mifare_desfire_connect(data->tag);
   if(res) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
   }
 
   Local<String> name = String::New(freefare_get_tag_friendly_name(data->tag));
   mifare_desfire_disconnect(data->tag);
+  unlock_device(data->reader);
   return scope.Close(name);
 }
 
@@ -155,21 +188,29 @@ Handle<Value> CardKeyVersion(const Arguments& args) {
   if(args.Length()!=1 || !args[0]->IsNumber()) {
     return scope.Close(errorResult(0x12302, "This function takes a key number as arguments"));
   }
+  lock_device(data->reader);
   res = mifare_desfire_connect(data->tag);
   if(res) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
   }
 
   res = mifare_desfire_get_key_version(data->tag, args[0]->ToUint32()->Value(), &version);
   if(res) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12308, freefare_strerror(data->tag)));
   }
   mifare_desfire_disconnect(data->tag);
+  unlock_device(data->reader);
   return scope.Close(Local<Number>::New(Number::New(version)));
 }
 
 Handle<Value> CardFreeMemory(const Arguments& args) {
+#if ! defined(USE_LIBNFC)
   LONG res;
+#else
+  int res;
+#endif
   uint32_t size;
   HandleScope scope;
   Local<Object> self = args.This();
@@ -182,16 +223,20 @@ Handle<Value> CardFreeMemory(const Arguments& args) {
     return scope.Close(errorResult(0x12302, "This function takes no arguments"));
   }
 
+  lock_device(data->reader);
   res = mifare_desfire_connect(data->tag);
   if(res) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
   }
 
   res = mifare_desfire_free_mem(data->tag, &size);
   mifare_desfire_disconnect(data->tag);
   if(res) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12309, freefare_strerror(data->tag)));
   }
+  unlock_device(data->reader);
   return scope.Close(Local<Number>::New(Number::New(size)));
 }
 
@@ -339,8 +384,10 @@ Handle<Value> CardFormat(const Arguments& args) {
   uint8_t flags = (configChangable << 3) | (freeCreateDelete << 2) | (freeDirectoryList << 1) | (keyChangable << 0);
   int res;
 
+  lock_device(data->reader);
   res = mifare_desfire_connect(data->tag);
   if(res < 0) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12303, "Can't connect to Mifare DESFire target."));
   }
 
@@ -348,6 +395,7 @@ Handle<Value> CardFormat(const Arguments& args) {
   res = mifare_desfire_authenticate(data->tag, 0, key_picc);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12310, "Can't authenticate on Mifare DESFire target."));
   }
   mifare_desfire_key_free(key_picc);
@@ -355,15 +403,18 @@ Handle<Value> CardFormat(const Arguments& args) {
   res = mifare_desfire_change_key_settings(data->tag, flags);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12311, "ChangeKeySettings failed"));
   }
   res = mifare_desfire_format_picc(data->tag);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12312, "Can't format PICC."));
   }
 
   mifare_desfire_disconnect(data->tag);
+  unlock_device(data->reader);
 
   return scope.Close(validTrue()); 
 }
@@ -390,14 +441,17 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     return scope.Close(errorResult(0x12302, "This function takes a buffer to write to a tag"));
   }
 
+  lock_device(data->reader);
   res = mifare_desfire_connect(data->tag);
   if(res) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
   }
 
   struct mifare_desfire_version_info info;
   res = mifare_desfire_get_version(data->tag, &info);
   if(res < 0) {
+    unlock_device(data->reader);
     mifare_desfire_disconnect(data->tag);
     return errorResult(0x12304, freefare_strerror(data->tag));
   }
@@ -417,6 +471,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
   res = mifare_desfire_select_application(data->tag, NULL);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12313, "Application selection failed"));
   }
 
@@ -428,7 +483,8 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
   // Authentication with PICC master key MAY be needed to issue ChangeKeySettings command
   res = mifare_desfire_authenticate(data->tag, 0, key_picc);
   if(res < 0) {
-  mifare_desfire_disconnect(data->tag);
+    mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12310, "Authentication with PICC master key failed"));
   }
 
@@ -448,6 +504,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
       res = mifare_desfire_change_key_settings(data->tag, 0x09);
       if(res < 0) {
         mifare_desfire_disconnect(data->tag);
+        unlock_device(data->reader);
         return scope.Close(errorResult(0x12311, "ChangeKeySettings failed"));
       }
     }
@@ -457,6 +514,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_create_application(data->tag, aid, 0x09, 1);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12314, "Application creation failed. Try format before running create."));
     }
 
@@ -464,6 +522,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_select_application(data->tag, aid);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12313, "Application selection failed"));
     }
     free(aid);
@@ -472,6 +531,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_authenticate(data->tag, 0, key_app);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12310, "Authentication with NDEF Tag Application master key failed"));
     }
 
@@ -479,6 +539,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_change_key_settings(data->tag, 0x09);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12311, "ChangeKeySettings failed"));
     }
 
@@ -487,6 +548,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_create_std_data_file(data->tag, 0x03, MDCM_PLAIN, 0xE000, 0x00000F);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12315, "CreateStdDataFile failed"));
     }
 
@@ -509,6 +571,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_write_data(data->tag, 0x03, 0, sizeof(capability_container_file_content), capability_container_file_content);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12316, "Write CC file content failed"));
     }
 
@@ -517,6 +580,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_create_std_data_file(data->tag, 0x04, MDCM_PLAIN, 0xEEE0, 0x000EE0);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12317, "CreateStdDataFile failed"));
     }
 
@@ -528,6 +592,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_create_application_iso(data->tag, aid, 0x0F, 0x21, 0, 0xE110, app, sizeof(app));
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12314, "Application creation failed. Try format before running."));
     }
 
@@ -535,6 +600,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_select_application(data->tag, aid);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12313, "Application selection failed"));
     }
     free(aid);
@@ -543,6 +609,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_authenticate(data->tag, 0, key_app);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12310, "Authentication with NDEF Tag Application master key failed"));
     }
 
@@ -551,6 +618,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_create_std_data_file_iso(data->tag, 0x01, MDCM_PLAIN, 0xE000, 0x00000F, 0xE103);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12316, "CreateStdDataFileIso failed"));
     }
 
@@ -583,6 +651,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_write_data(data->tag, 0x01, 0, sizeof(capability_container_file_content), capability_container_file_content);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12317, "Write CC file content failed"));
     }
 
@@ -591,6 +660,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     res = mifare_desfire_create_std_data_file_iso(data->tag, 0x02, MDCM_PLAIN, 0xEEE0, ndef_max_size, 0xE104);
     if(res < 0) {
       mifare_desfire_disconnect(data->tag);
+      unlock_device(data->reader);
       return scope.Close(errorResult(0x12318, "CreateStdDataFileIso failed"));
     }
   }
@@ -602,9 +672,11 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
   res = mifare_desfire_write_data(data->tag, file_no, 2, ndef_msg_len, (uint8_t*)ndef_msg);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12319, "Writing ndef message faild"));
   }
   mifare_desfire_disconnect(data->tag);
+  unlock_device(data->reader);
 
   return scope.Close(validTrue()); 
 }
@@ -729,7 +801,9 @@ Handle<Value> CardReadNdef(const Arguments& args) {
   }
 
   res = mifare_desfire_connect(data->tag);
+  lock_device(data->reader);
   if(res) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
   }
 
@@ -739,11 +813,13 @@ Handle<Value> CardReadNdef(const Arguments& args) {
   mifare_desfire_key_free(key_app);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorresult);
   }
 
   if(!(ndef_msg = new uint8_t[ndef_max_len + 20])) { // cf FIXME in mifare_desfire.c read_data()
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12325, "Allocation of ndef file failed"));
   }
 
@@ -751,21 +827,25 @@ Handle<Value> CardReadNdef(const Arguments& args) {
   res = mifare_desfire_read_data(data->tag, file_no, 0, 2, lendata);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12326, "Reading of ndef file failed"));
   }
   ndef_msg_len = (((uint16_t)lendata[0]) << 8) + ((uint16_t)lendata[1]);
   if(ndef_msg_len + 2 > ndef_max_len) {
     mifare_desfire_disconnect(data->tag);
-      return scope.Close(errorResult(0x12327, "Declared ndef size larger than max ndef size"));
+    unlock_device(data->reader);
+    return scope.Close(errorResult(0x12327, "Declared ndef size larger than max ndef size"));
   }
   res = mifare_desfire_read_data(data->tag, file_no, 2, ndef_msg_len, ndef_msg);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12326, "Reading ndef message faild"));
   }
   if(res != ndef_msg_len){
     printf("767, data read res %d %d\n", res, ndef_msg_len);
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12329, "Reading full ndef message failed"));
   }
   Buffer *slowBuffer = Buffer::New(ndef_msg_len);
@@ -777,6 +857,7 @@ Handle<Value> CardReadNdef(const Arguments& args) {
     delete [] ndef_msg;
   }
   mifare_desfire_disconnect(data->tag);
+  unlock_device(data->reader);
   return scope.Close(validResult(result));
 }
 
@@ -804,7 +885,9 @@ Handle<Value> CardWriteNdef(const Arguments& args) {
   ndef_msg = Buffer::Data(args[0]);
 
   res = mifare_desfire_connect(data->tag);
+  lock_device(data->reader);
   if(res) {
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
   }
 
@@ -814,6 +897,7 @@ Handle<Value> CardWriteNdef(const Arguments& args) {
   Local<Object> errorresult = CardReadNdefTVL(data, res, file_no, ndef_max_len, key_app);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorresult);
   }
 
@@ -821,6 +905,7 @@ Handle<Value> CardWriteNdef(const Arguments& args) {
 
   if(ndef_msg_len > ndef_max_len) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12327, "Supplied NDEF larger than max NDEF size"));
   }
 
@@ -832,6 +917,7 @@ Handle<Value> CardWriteNdef(const Arguments& args) {
   res = mifare_desfire_write_data(data->tag, file_no, 0, 2, (uint8_t*)&zero);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12328, "Writing ndef message size pre faild"));
   }
 
@@ -839,21 +925,25 @@ Handle<Value> CardWriteNdef(const Arguments& args) {
   if(res != ndef_msg_len){
     printf("790, data write res %d %d\n", res, ndef_msg_len);
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12329, "Writing full ndef message failed"));
   }
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12330, "Writing ndef message failed"));
   }
   
   res = mifare_desfire_write_data(data->tag, file_no, 0, 2, ndef_msg_b);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
     return scope.Close(errorResult(0x12331, "Writing ndef message size post faild"));
   }
 
 
   res = mifare_desfire_disconnect(data->tag);
+  unlock_device(data->reader);
   return scope.Close(validTrue()); 
 }
 

@@ -10,7 +10,7 @@
 #include <iostream>
 #include <cstring>
 
-#ifndef USE_LIBNFC
+#if ! defined(USE_LIBNFC)
 #if defined(__APPLE__) || defined(__linux__)
 #include <PCSC/winscard.h>
 #include <PCSC/wintypes.h>
@@ -37,7 +37,7 @@ struct reader_data {
    * @return The SCARD_READERSTATE object representating this object
    */
   reader_data(const char* name,
-#ifndef USE_LIBNFC
+#if ! defined(USE_LIBNFC)
       pcsc_context *hContext
 #else
       nfc_context *context,
@@ -47,7 +47,7 @@ struct reader_data {
   {
     this->name = std::string(name);
     this->timer.data = this;
-#ifndef USE_LIBNFC
+#if ! defined(USE_LIBNFC)
     this->context = hContext;
     this->state.szReader = this->name.c_str();
     this->state.dwCurrentState = SCARD_STATE_UNAWARE;
@@ -56,8 +56,17 @@ struct reader_data {
     this->context = context;
     this->last_err = NFC_ENOTSUCHDEV;
     this->device = device;
+    uv_mutex_init(&this->mDevice);
 #endif
   }
+
+#if ! defined(USE_LIBNFC)
+#else
+  ~reader_data() {
+    this->device = NULL;
+    uv_mutex_destroy(&this->mDevice);
+  };
+#endif
 
   std::string name;
   uv_timer_t timer;
@@ -69,6 +78,7 @@ struct reader_data {
   int last_err;
   std::vector< char* > last_uids;
   nfc_device *device;
+  uv_mutex_t mDevice;
 #endif
   Persistent<Function> callback;
   Persistent<Object> self;

@@ -20,6 +20,8 @@ Handle<Value> CardInfo(const Arguments& args) {
 #if ! defined(USE_LIBNFC)
 #else
   pthread_mutex_lock(&data->reader->mDevice);
+  // TODO: check error code
+  nfc_device_set_property_bool(data->reader->device, NP_INFINITE_SELECT, false);
 #endif
   res = mifare_desfire_connect(data->tag);
   if(res) {

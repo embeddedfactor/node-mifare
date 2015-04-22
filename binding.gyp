@@ -8,8 +8,13 @@
       "dependencies": ["node_modules/libfreefare-pcsc/binding.gyp:freefare_pcsc"],
       "conditions": [
         ['OS=="linux"', {
-          "defines": [
-            "USE_LIBNFC",
+          "variables": { "ARCH": "<!(uname -m | grep ^arm && echo arm || /bin/true)", },
+          "conditions": [
+            ['ARCH=="arm"', {
+              "defines": [
+                "USE_LIBNFC",
+              ],
+            }],
           ],
         }]
       ],

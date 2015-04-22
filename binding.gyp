@@ -1,4 +1,7 @@
 {
+  "variables": {
+    "source_dir": "src",
+  },
   "targets": [
     {
       "target_name": "node_mifare",
@@ -10,6 +13,7 @@
           ],
         }]
       ],
+      "include_dirs": ["<(source_dir)"],
       "sources": [
         "src/mifare.cc",
         "src/reader.cc",

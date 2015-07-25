@@ -366,7 +366,6 @@ Handle<Value> ReaderSetLed(const Arguments& args) {
   uint8_t rBuffer[262];
   const uint8_t pos[5] = {3, 5, 6, 7, 8};
   DWORD rSize = 262;
-  uint32_t rLength = 0;
   SCARDHANDLE hCard;
   DWORD dwActiveProtocol;
   LONG rv;

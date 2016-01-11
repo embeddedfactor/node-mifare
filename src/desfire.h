@@ -30,7 +30,7 @@ using namespace node;
 #if ! defined(USE_LIBNFC)
 #else
 struct smart_tags {
-  smart_tags(MifareTag *tags) {
+  smart_tags(FreefareTag *tags) {
     this->tags = tags;
     this->cards_using_this_instance = 0;
     uv_mutex_init(&this->m);
@@ -46,7 +46,7 @@ struct smart_tags {
     uv_mutex_unlock(&this->m);
   };
   unsigned int cards_using_this_instance;
-  MifareTag *tags;
+  FreefareTag *tags;
   uv_mutex_t m;
 };
 #endif
@@ -54,7 +54,7 @@ struct smart_tags {
 struct card_data {
   card_data(reader_data *reader,
 #if ! defined(USE_LIBNFC)
-    MifareTag *t
+    FreefareTag *t
 #else
     smart_tags *t
 #endif
@@ -90,11 +90,11 @@ struct card_data {
 #endif
     }
   }
-  
+
   reader_data *reader;
-  MifareTag tag;
+  FreefareTag tag;
 #if ! defined(USE_LIBNFC)
-  MifareTag *tags;
+  FreefareTag *tags;
 #else
   smart_tags *tags;
 #endif

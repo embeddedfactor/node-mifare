@@ -51,10 +51,10 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         }
 
         // Establishes a connection to a smart card contained by a specific reader.
-        MifareTag *tags = freefare_get_tags_pcsc(data->context, data->state.szReader);
+        FreefareTag *tags = freefare_get_tags_pcsc(data->context, data->state.szReader);
         // XXX: With PCSC tags is always length 2 with {tag, NULL} we assume this is allways the case here!!!!
-        for(int i = 0; (!res) && tags[i]; i++) {
-          if(tags[i] && freefare_get_tag_type(tags[i]) == DESFIRE) {
+        for(int i = 0; (!res) && tags && tags[i]; i++) {
+          if(tags[i] && freefare_get_tag_type(tags[i]) == MIFARE_DESFIRE) {
 
             card_data *cardData = new card_data(data, tags);
             cardData->tag = tags[i];
@@ -126,7 +126,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   Local<String> status;
   Local<Object> reader = Local<Object>::New(data->self);
   reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
-  
+
   uv_mutex_lock(&data->mDevice);
   if (!data->device) {
     uv_mutex_unlock(&data->mDevice);
@@ -142,7 +142,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     return;
   }
 
-  MifareTag *tags = freefare_get_tags(data->device);
+  FreefareTag *tags = freefare_get_tags(data->device);
   int err = nfc_device_get_last_error(data->device);
   nfc_device_set_property_bool(data->device, NP_INFINITE_SELECT, false);
   uv_mutex_unlock(&data->mDevice);
@@ -156,8 +156,8 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
   if (err == NFC_SUCCESS && tags != NULL && tags[0] != NULL) { // found more than 0 tags -> present
     data->last_err = err;
 
-    MifareTag t = NULL;
-    MifareTag old_tag;
+    FreefareTag t = NULL;
+    FreefareTag old_tag;
     size_t len;
     char *old_tag_uid, *t_uid;
     // we definetly found new tags if previous search did not get any
@@ -314,7 +314,7 @@ Handle<Value> ReaderRelease(const Arguments &args) {
   data->callback.Clear();
   data->self.Dispose();
   data->self.Clear();
-  return scope.Close(args.This()); 
+  return scope.Close(args.This());
 }
 
 Handle<Value> ReaderListen(const Arguments& args) {
@@ -339,7 +339,7 @@ Handle<Value> ReaderListen(const Arguments& args) {
 
   uv_timer_init(uv_default_loop(), &data->timer);
   uv_timer_start(&data->timer, reader_timer_callback, 500, 250);
-  return scope.Close(args.This()); 
+  return scope.Close(args.This());
 }
 
 #if defined (_WIN32)
@@ -384,23 +384,23 @@ Handle<Value> ReaderSetLed(const Arguments& args) {
   //rv = SCardControl(hCard, IOCTL_CCID_ESCAPE_SCARD_CTL_CODE, sBuffer, sSize, rBuffer, rSize, &rLength);
   int retCode = SCardTransmit(hCard, NULL, sBuffer, sSize, NULL, rBuffer, &rSize);
   std::cout << "rv: " << std::hex << rv << std::endl;
-  std::cout << "sent: " 
+  std::cout << "sent: "
             << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[0] << " " 
+            << (int)sBuffer[0] << " "
             << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[1] << " " 
+            << (int)sBuffer[1] << " "
             << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[2] << " " 
+            << (int)sBuffer[2] << " "
             << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[3] << " " 
+            << (int)sBuffer[3] << " "
             << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[4] << " " 
+            << (int)sBuffer[4] << " "
             << std::hex << std::setw(2) << std::setfill('0')
             << (int)sBuffer[5] << " "
             << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[6] << " " 
+            << (int)sBuffer[6] << " "
             << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[7] << " " 
+            << (int)sBuffer[7] << " "
             << std::hex << std::setw(2) << std::setfill('0')
             << (int)sBuffer[8] << " "
             << std::endl;
@@ -408,6 +408,6 @@ Handle<Value> ReaderSetLed(const Arguments& args) {
   rv = SCardDisconnect(hCard, SCARD_LEAVE_CARD);
 
 #endif
-  return scope.Close(args.This()); 
+  return scope.Close(args.This());
 }
 

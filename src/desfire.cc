@@ -52,7 +52,7 @@ Handle<Value> CardInfo(const Arguments& args) {
     uid->Set(j, Integer::New(info.uid[j]));
   }
   card->Set(String::NewSymbol("uid"), uid);
-   
+
   Local<Array> bno = Local<Array>::New(Array::New(5));
   for(unsigned int j=0; j<5; j++) {
     bno->Set(j, Integer::New(info.batch_number[j]));
@@ -91,7 +91,7 @@ Handle<Value> CardInfo(const Arguments& args) {
   software->Set(String::NewSymbol("storageSize"), Number::New(info.software.storage_size));
   software->Set(String::NewSymbol("protocol"), Number::New(info.software.protocol));
   card->Set(String::NewSymbol("software"), software);
-  
+
   return scope.Close(card);
 }
 
@@ -128,20 +128,20 @@ Handle<Value> CardMasterKeyInfo(const Arguments& args) {
     key->Set(String::NewSymbol("freeDirectoryList"), Boolean::New((settings & 0x02)));
     key->Set(String::NewSymbol("keyChangable"), Boolean::New((settings & 0x01)));
     key->Set(String::NewSymbol("maxKeys"), Integer::New((max_keys)));
-  
+
     mifare_desfire_disconnect(data->tag);
 
     unlock_device(data->reader);
-    return scope.Close(key); 
+    return scope.Close(key);
   } else if (AUTHENTICATION_ERROR == mifare_desfire_last_picc_error(data->tag)) {
     Local<String> key = String::New("LOCKED");
-  
+
     mifare_desfire_disconnect(data->tag);
 
     unlock_device(data->reader);
-    return scope.Close(key); 
+    return scope.Close(key);
   } else {
-  
+
     mifare_desfire_disconnect(data->tag);
 
     unlock_device(data->reader);
@@ -290,8 +290,8 @@ Handle<Value> CardSetKey(const Arguments & args) {
   if(args.Length()==0 || args.Length()>4 || !args[0]->IsArray() ||
       (args.Length()>1 && !args[1]->IsString()) ||
       (args.Length()>2 && !args[2]->IsBoolean()) ||
-      (args.Length()>3 && !args[3]->IsUint32()) || 
-      (args.Length()>3 && args[3]->ToUint32()->Value()>255) 
+      (args.Length()>3 && !args[3]->IsUint32()) ||
+      (args.Length()>3 && args[3]->ToUint32()->Value()>255)
     ) {
     return scope.Close(errorResult(0x12302, error));
   }
@@ -347,7 +347,7 @@ Handle<Value> CardSetKey(const Arguments & args) {
     key_val[i] = 0;
   }
 
-  return scope.Close(args.This()); 
+  return scope.Close(args.This());
 }
 
 Handle<Value> CardFormat(const Arguments& args) {
@@ -416,7 +416,7 @@ Handle<Value> CardFormat(const Arguments& args) {
   mifare_desfire_disconnect(data->tag);
   unlock_device(data->reader);
 
-  return scope.Close(validTrue()); 
+  return scope.Close(validTrue());
 }
 
 Handle<Value> CardCreateNdef(const Arguments& args) {
@@ -461,7 +461,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
   case 0: {
       ndef_mapping = 1;
     } break;
-  case 1: 
+  case 1:
   default: // newer version? let's assume it supports latest mapping too
       ndef_mapping = 2;
   }
@@ -637,7 +637,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
       0x00,           //   free read access
       0x00            //   free write acces
     };
-    
+
     uint16_t ndef_max_size = 0x0800;
     uint16_t announcedsize = 1 << (info.software.storage_size >> 1);
     if(announcedsize >= 0x1000) {
@@ -678,7 +678,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
   mifare_desfire_disconnect(data->tag);
   unlock_device(data->reader);
 
-  return scope.Close(validTrue()); 
+  return scope.Close(validTrue());
 }
 
 
@@ -755,7 +755,7 @@ Local<Object> CardReadNdefTVL(card_data *data, int &res, uint8_t &file_no, uint1
   while(((off + 7) < cclen) && (cc_data[off] != 0x04)) {
       off += cc_data[off + 1] + 2; // Skip TLV entry
   }
-  
+
   if(off + 7 >= cclen) {
     res = -12343;
     return errorResult(0x12323, "We've reached the end of the ndef capability container file (E103) and did not find the ndef TLV");
@@ -835,6 +835,11 @@ Handle<Value> CardReadNdef(const Arguments& args) {
     mifare_desfire_disconnect(data->tag);
     unlock_device(data->reader);
     return scope.Close(errorResult(0x12327, "Declared ndef size larger than max ndef size"));
+  }
+  if(ndef_msg_len == 0) {
+    mifare_desfire_disconnect(data->tag);
+    unlock_device(data->reader);
+    return scope.Close(errorResult(0x12332, "Declared ndef size is zero last write was faulty"));
   }
   res = mifare_desfire_read_data(data->tag, file_no, 2, ndef_msg_len, ndef_msg);
   if(res < 0) {
@@ -933,7 +938,7 @@ Handle<Value> CardWriteNdef(const Arguments& args) {
     unlock_device(data->reader);
     return scope.Close(errorResult(0x12330, "Writing ndef message failed"));
   }
-  
+
   res = mifare_desfire_write_data(data->tag, file_no, 0, 2, ndef_msg_b);
   if(res < 0) {
     mifare_desfire_disconnect(data->tag);
@@ -944,7 +949,7 @@ Handle<Value> CardWriteNdef(const Arguments& args) {
 
   res = mifare_desfire_disconnect(data->tag);
   unlock_device(data->reader);
-  return scope.Close(validTrue()); 
+  return scope.Close(validTrue());
 }
 
 Handle<Value> CardFree(const Arguments& args) {
@@ -958,7 +963,7 @@ Handle<Value> CardFree(const Arguments& args) {
   if(args.Length()!=0) {
     return scope.Close(errorResult(0x12321, "This function takes no arguments"));
   }
-  
+
   delete data;
   data = NULL;
   return scope.Close(Undefined());

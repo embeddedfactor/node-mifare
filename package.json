@@ -18,7 +18,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hackerhelmut/node-mifare.git"
+    "url": "https://github.com/embeddedfactor/node-mifare.git"
   },
   "dependencies": {
     "libfreefare-pcsc": "git+https://github.com/embeddedfactor/libfreefare-pcsc.git",

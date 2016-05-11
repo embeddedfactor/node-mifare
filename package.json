@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "libfreefare-pcsc": "git+https://github.com/embeddedfactor/libfreefare-pcsc.git",
-    "ndef": "0.0.4"
+    "ndef": "0.0.4",
+    "nan": "^2.2.0"
   }
 }

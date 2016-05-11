@@ -1,44 +1,38 @@
 #include "utils.h"
 
-Local<Object> validResult(Local<Value> data) {
-  Local<Object> result = Object::New();
-  result->Set(String::NewSymbol("err"), Array::New());
-  result->Set(String::NewSymbol("data"), data);
-  return result;
+void validResult(const Nan::FunctionCallbackInfo<v8::Value> &info, v8::Local<v8::Value> data) {
+  v8::Local<v8::Object> result = Nan::New<v8::Object>();
+  result->Set(Nan::New("err").ToLocalChecked(), Nan::New<v8::Array>());
+  result->Set(Nan::New("data").ToLocalChecked(), data);
+  info.GetReturnValue().Set(result);
 }
 
-Local<Object> validTrue() {
-  return validResult(Local<Boolean>::New(Boolean::New(true)));
+void validTrue(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  validResult(info, Nan::New<v8::Boolean>(true));
 }
 
-Local<Object> errorResult(int no, const std::string msg) {
-  return errorResult(no, msg.c_str());
+void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const std::string msg) {
+  return errorResult(info, no, msg.c_str());
 }
 
-Local<Object> errorResult(int no, const char *msg) {
-  Local<Object> result = Object::New();
-  Local<Array> errors = Array::New();
-  Local<Object> error = Object::New();
-  
-  error->Set(String::NewSymbol("code"), Integer::New(no));
-  error->Set(String::NewSymbol("msg"), String::New(msg));
+void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const char *msg) {
+  v8::Local<v8::Object> result = Nan::New<v8::Object>();
+  v8::Local<v8::Array> errors = Nan::New<v8::Array>();
+  v8::Local<v8::Object> error = Nan::New<v8::Object>();
+
+  error->Set(Nan::New("code").ToLocalChecked(), Nan::New(no));
+  error->Set(Nan::New("msg").ToLocalChecked(), Nan::New(msg).ToLocalChecked());
   errors->Set(0, error);
-  result->Set(String::NewSymbol("err"), errors);
-  result->Set(String::NewSymbol("data"), Undefined());
-  return result;
+  result->Set(Nan::New("err").ToLocalChecked(), errors);
+  result->Set(Nan::New("data").ToLocalChecked(), Nan::Undefined());
+  info.GetReturnValue().Set(result);
 }
 
-Local<Object> buffer(uint8_t *data, size_t len) {
-  Buffer *slowBuffer = Buffer::New(len);
-  memcpy(Buffer::Data(slowBuffer), data, len);
-
-  Local<Object> result = Object::New();
-  Local<Object> globalObj = Context::GetCurrent()->Global();
-  Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
-  Handle<Value> constructorArgs[3] = { slowBuffer->handle_, v8::Integer::New(len), v8::Integer::New(0) };
-  Local<Object> ndef = bufferConstructor->NewInstance(3, constructorArgs);
-  result->Set(String::NewSymbol("ndef"), ndef);
+v8::Local<v8::Object> buffer(uint8_t *data, size_t len) {
+  v8::Local<v8::Object> result = Nan::New<v8::Object>();
+  result->Set(
+    Nan::New("ndef").ToLocalChecked(),
+    Nan::CopyBuffer(reinterpret_cast<char *>(data), len).ToLocalChecked()
+  );
   return result;
 }
-
-

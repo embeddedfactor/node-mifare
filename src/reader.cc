@@ -6,16 +6,31 @@
 #include "reader.h"
 #include "desfire.h"
 
+reader_data *reader_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  //card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+  return static_cast<reader_data *>(
+    v8::Local<v8::External>::Cast(
+      info.This()->GetHiddenValue(
+        Nan::New("data").ToLocalChecked()
+      )
+    )->Value()
+  );
+}
+
 
 #if ! defined(USE_LIBNFC)
+
+#if NODE_VERSION_AT_LEAST(0, 12, 0)
+void reader_timer_callback(uv_timer_t *handle) {
+#else
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
-  HandleScope scope;
+#endif
   reader_data *data = static_cast<reader_data *>(handle->data);
   LONG res;
   DWORD event;
-  Local<String> status;
-  Local<Object> reader = Local<Object>::New(data->self);
-  reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
+  v8::Local<v8::String> status;
+  v8::Local<v8::Object> reader = Nan::New<v8::Object>(data->self);
+  reader->Set(Nan::New("name").ToLocalChecked(), Nan::New(data->name.c_str()).ToLocalChecked());
 
   res = SCardGetStatusChange(data->context->context, 1, &data->state, 1);
   if(res == SCARD_S_SUCCESS) {
@@ -23,27 +38,27 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     if(event & SCARD_STATE_CHANGED) {
       data->state.dwCurrentState = event;
       if(event & SCARD_STATE_IGNORE) {
-        status = v8::String::New("ignore");
+        status = Nan::New("ignore").ToLocalChecked();
       } else if(event & SCARD_STATE_UNKNOWN) {
-        status = v8::String::New("unknown");
+        status = Nan::New("unknown").ToLocalChecked();
       } else if(event & SCARD_STATE_UNAVAILABLE) {
-        status = v8::String::New("unavailable");
+        status = Nan::New("unavailable").ToLocalChecked();
       } else if(event & SCARD_STATE_EMPTY) {
-        status = v8::String::New("empty");
+        status = Nan::New("empty").ToLocalChecked();
       } else if(event & SCARD_STATE_PRESENT) {
-        status = v8::String::New("present");
+        status = Nan::New("present").ToLocalChecked();
       } else if(event & SCARD_STATE_ATRMATCH) {
-        status = v8::String::New("atrmatch");
+        status = Nan::New("atrmatch").ToLocalChecked();
       } else if(event & SCARD_STATE_EXCLUSIVE) {
-        status = v8::String::New("exclusive");
+        status = Nan::New("exclusive").ToLocalChecked();
       } else if(event & SCARD_STATE_INUSE) {
-        status = v8::String::New("inuse");
+        status = Nan::New("inuse").ToLocalChecked();
       } else if(event & SCARD_STATE_MUTE) {
-        status = v8::String::New("mute");
+        status = Nan::New("mute").ToLocalChecked();
       }
 
       // Prepare readerObject event
-      reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(status));
+      reader->Set(Nan::New("status").ToLocalChecked(), status);
 
       // Card object, will be eventually filled lateron
       if(event & SCARD_STATE_PRESENT) {
@@ -58,29 +73,25 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 
             card_data *cardData = new card_data(data, tags);
             cardData->tag = tags[i];
-            Local<Object> card = Object::New();
-            card->Set(String::NewSymbol("type"), String::New("desfire"));
-            card->SetHiddenValue(String::NewSymbol("data"), External::Wrap(cardData));
+            v8::Local<v8::Object> card = Nan::New<v8::Object>();
+            card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
+            card->SetHiddenValue(Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
 
-            card->Set(String::NewSymbol("info"), FunctionTemplate::New(CardInfo)->GetFunction());
-            card->Set(String::NewSymbol("masterKeyInfo"), FunctionTemplate::New(CardMasterKeyInfo)->GetFunction());
-            card->Set(String::NewSymbol("keyVersion"), FunctionTemplate::New(CardKeyVersion)->GetFunction());
-            card->Set(String::NewSymbol("freeMemory"), FunctionTemplate::New(CardFreeMemory)->GetFunction());
-            card->Set(String::NewSymbol("setKey"), FunctionTemplate::New(CardSetKey)->GetFunction());
-            card->Set(String::NewSymbol("setAid"), FunctionTemplate::New(CardSetAid)->GetFunction());
-            card->Set(String::NewSymbol("format"), FunctionTemplate::New(CardFormat)->GetFunction());
-            card->Set(String::NewSymbol("createNdef"), FunctionTemplate::New(CardCreateNdef)->GetFunction());
-            card->Set(String::NewSymbol("readNdef"), FunctionTemplate::New(CardReadNdef)->GetFunction());
-            card->Set(String::NewSymbol("writeNdef"), FunctionTemplate::New(CardWriteNdef)->GetFunction());
-            card->Set(String::NewSymbol("free"), FunctionTemplate::New(CardFree)->GetFunction());
+            card->Set(Nan::New("info").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardInfo)->GetFunction());
+            card->Set(Nan::New("masterKeyInfo").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardMasterKeyInfo)->GetFunction());
+            card->Set(Nan::New("keyVersion").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardKeyVersion)->GetFunction());
+            card->Set(Nan::New("freeMemory").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFreeMemory)->GetFunction());
+            card->Set(Nan::New("setKey").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardSetKey)->GetFunction());
+            card->Set(Nan::New("setAid").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardSetAid)->GetFunction());
+            card->Set(Nan::New("format").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFormat)->GetFunction());
+            card->Set(Nan::New("createNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardCreateNdef)->GetFunction());
+            card->Set(Nan::New("readNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardReadNdef)->GetFunction());
+            card->Set(Nan::New("writeNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardWriteNdef)->GetFunction());
+            card->Set(Nan::New("free").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFree)->GetFunction());
 
             const unsigned argc = 3;
-            Local<Value> argv[argc] = {
-              Local<Value>::New(Undefined()),
-              Local<Value>::New(reader),
-              Local<Value>::New(card)
-            };
-            data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+            v8::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, card };
+            Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);
 
             //delete cardData;
           }
@@ -88,69 +99,51 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         //freefare_free_tags(tags);
       } else {
         const unsigned argc = 3;
-        Local<Value> argv[argc] = {
-          Local<Value>::New(Undefined()),
-          Local<Value>::New(reader),
-          Local<Value>::New(Undefined())
-        };
-        data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+        v8::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, Nan::Undefined() };
+        Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);
       }
     }
   } else if(static_cast<unsigned int>(res) == SCARD_E_TIMEOUT) {
-      reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(v8::String::New("timeout")));
+      reader->Set(Nan::New("status").ToLocalChecked(), Nan::New("timeout").ToLocalChecked());
       const unsigned argc = 3;
-      Local<Value> argv[argc] = {
-        Local<Value>::New(Undefined()),
-        Local<Value>::New(reader),
-        Local<Value>::New(Undefined())
-      };
-      data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+      v8::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, Nan::Undefined() };
+      Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);
   } else {
-      reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(v8::String::New("unknown")));
+      reader->Set(Nan::New("status").ToLocalChecked(), Nan::New("unknown").ToLocalChecked());
       const unsigned argc = 3;
-      Local<Value> argv[argc] = {
-        Local<Value>::New(Undefined()),
-        Local<Value>::New(reader),
-        Local<Value>::New(Undefined())
-      };
-      data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+      v8::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, Nan::Undefined() };
+      Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);
   }
 }
 #else // USE_LIBNFC
-inline Local<String> make_status(const char* const s) {
-  return v8::String::New(s);
-}
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
-  HandleScope scope;
   reader_data *data = static_cast<reader_data *>(handle->data);
-  Local<String> status;
-  Local<Object> reader = Local<Object>::New(data->self);
-  reader->Set(String::NewSymbol("name"), String::New(data->name.c_str()));
+  v8::Local<v8::String> status;
+  v8::Local<v8::Object> reader = Nan::New<v8::Object>(data->self);
+  GuardReader reader_guard(data, true);
+  reader->Set(Nan::New("name").ToLocalChecked(), Nan::New(data->name.c_str()).ToLocalChecked());
 
-  uv_mutex_lock(&data->mDevice);
   if (!data->device) {
-    uv_mutex_unlock(&data->mDevice);
-    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("unavailable")));
+    reader_guard->unlock();
+    reader->Set(Nan::New("status").ToLocalChecked(), Nan::New("unavailable").ToLocalChecked());
     const unsigned argc = 3;
-    Local<Value> err = String::New("No NFC device associated with this reader");
-    Local<Value> argv[argc] = {
-      Local<Value>::New(err),
-      Local<Value>::New(reader),
-      Local<Value>::New(Undefined())
+    v8::Local<v8::Value> argv[argc] = {
+      Nan::New("No NFC device associated with this reader").ToLocalChecked(),
+      reader,
+      Nan::Undefined()
     };
-    data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+    Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);
     return;
   }
 
   FreefareTag *tags = freefare_get_tags(data->device);
   int err = nfc_device_get_last_error(data->device);
   nfc_device_set_property_bool(data->device, NP_INFINITE_SELECT, false);
-  uv_mutex_unlock(&data->mDevice);
+  reader_guard->unlock();
   // return on all but success cases
   // for succes, we have to distinghish between empty and present
   if (err != NFC_SUCCESS && err == data->last_err) {
     freefare_free_tags(tags);
-    scope.Close(Undefined());
     return;
   }
   if (err == NFC_SUCCESS && tags != NULL && tags[0] != NULL) { // found more than 0 tags -> present
@@ -179,7 +172,6 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     // XXX: What happens when an existing tag get's a new uid?!
     // this would trigger a freefare_free_tags here.
     if(!found_new_tag) {
-      scope.Close(Undefined());
       return;
     } else {
       for(std::vector<char *>::iterator i = data->last_uids.begin(); i != data->last_uids.end(); ++i){
@@ -188,7 +180,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
       }
     }
     data->last_uids.clear();
-    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(make_status("present")));
+    reader->Set(Nan::New("status").ToLocalChecked(), Nan::New("present").ToLocalChecked());
 
     t = NULL;
     int tag_count = 0;
@@ -202,29 +194,25 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 
         card_data *cardData = new card_data(data, st);
         cardData->tag = t;
-        Local<Object> card = Object::New();
-        card->Set(String::NewSymbol("type"), String::New("desfire"));
-        card->SetHiddenValue(String::NewSymbol("data"), External::Wrap(cardData));
+        Nan::Local<v8::Object> card = Nan::New<v8::Object>();
+        card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
+        card->SetHiddenValue(Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
 
-        card->Set(String::NewSymbol("info"), FunctionTemplate::New(CardInfo)->GetFunction());
-        card->Set(String::NewSymbol("masterKeyInfo"), FunctionTemplate::New(CardMasterKeyInfo)->GetFunction());
-        card->Set(String::NewSymbol("keyVersion"), FunctionTemplate::New(CardKeyVersion)->GetFunction());
-        card->Set(String::NewSymbol("freeMemory"), FunctionTemplate::New(CardFreeMemory)->GetFunction());
-        card->Set(String::NewSymbol("setKey"), FunctionTemplate::New(CardSetKey)->GetFunction());
-        card->Set(String::NewSymbol("setAid"), FunctionTemplate::New(CardSetAid)->GetFunction());
-        card->Set(String::NewSymbol("format"), FunctionTemplate::New(CardFormat)->GetFunction());
-        card->Set(String::NewSymbol("createNdef"), FunctionTemplate::New(CardCreateNdef)->GetFunction());
-        card->Set(String::NewSymbol("readNdef"), FunctionTemplate::New(CardReadNdef)->GetFunction());
-        card->Set(String::NewSymbol("writeNdef"), FunctionTemplate::New(CardWriteNdef)->GetFunction());
-        card->Set(String::NewSymbol("free"), FunctionTemplate::New(CardFree)->GetFunction());
+        card->Set(Nan::New("info").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardInfo)->GetFunction());
+        card->Set(Nan::New("masterKeyInfo").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardMasterKeyInfo)->GetFunction());
+        card->Set(Nan::New("keyVersion").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardKeyVersion)->GetFunction());
+        card->Set(Nan::New("freeMemory").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFreeMemory)->GetFunction());
+        card->Set(Nan::New("setKey").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardSetKey)->GetFunction());
+        card->Set(Nan::New("setAid").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardSetAid)->GetFunction());
+        card->Set(Nan::New("format").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFormat)->GetFunction());
+        card->Set(Nan::New("createNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardCreateNdef)->GetFunction());
+        card->Set(Nan::New("readNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardReadNdef)->GetFunction());
+        card->Set(Nan::New("writeNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardWriteNdef)->GetFunction());
+        card->Set(Nan::New("free").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFree)->GetFunction());
 
         const unsigned argc = 3;
-        Local<Value> argv[argc] = {
-          Local<Value>::New(Undefined()),
-          Local<Value>::New(reader),
-          Local<Value>::New(card)
-        };
-        data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+        Nan::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, card };
+        data->callback->Call(Nan::GetCurrentContext()->Global(), argc, argv);
         //delete cardData;
       }
     }
@@ -236,110 +224,98 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     if (err == NFC_SUCCESS) {
       if(data->last_uids.size() == 0) {
       // empty -> empty, no change
-        scope.Close(Undefined());
         return;
       }
       // present -> empty
       data->last_uids.clear();
-      status = make_status("empty");
+      status = Nan::New("empty");
     } else if(err == NFC_EIO) {
-      status = make_status("ioerror");
+      status = Nan::New("ioerror");
     } else if(err == NFC_EINVARG) {
       // XXX: should not happen
     } else if(err == NFC_EDEVNOTSUPP) {
-      status = make_status("invalid");
+      status = Nan::New("invalid");
     } else if(err == NFC_ENOTSUCHDEV) {
-      status = make_status("invalid");
+      status = Nan::New("invalid");
     } else if(err == NFC_ENOTIMPL) {
-      status = make_status("invalid");
+      status = Nan::New("invalid");
     } else if(err == NFC_EOVFLOW) {
-      status = make_status("overflow");
+      status = Nan::New("overflow");
     } else if(err == NFC_ETIMEOUT) {
-      status = make_status("timeout");
+      status = Nan::New("timeout");
     } else if(err == NFC_EOPABORTED) {
-      status = make_status("aborted");
+      status = Nan::New("aborted");
     } else if(err == NFC_ETGRELEASED) {
-      status = make_status("released");
+      status = Nan::New("released");
     } else if(err == NFC_ERFTRANS) {
-      status = make_status("error");
+      status = Nan::New("error");
     } else if(err == NFC_EMFCAUTHFAIL) {
-      status = make_status("authfail");
+      status = Nan::New("authfail");
     } else if(err == NFC_ESOFT) {
-      status = make_status("error");
+      status = Nan::New("error");
     } else if(err == NFC_ECHIP){
-      status = make_status("brokenchip");
+      status = Nan::New("brokenchip");
     }
     else
     {
       status = make_status("unknown");
     }
-    reader->Set(String::NewSymbol("status"), v8::Local<v8::Value>::New(status));
+    reader->Set(Nan::New("status"), status.ToLocalChecked());
     /*
     Came here because err changed. So we call the callback function
     */
     const unsigned argc = 3;
-    Local<Value> argv[argc] = {
-      Local<Value>::New(Undefined()),
-      Local<Value>::New(reader),
-      Local<Value>::New(Undefined())
+    Nan::Local<Value> argv[argc] = {
+      Nan::Local<v8::Value>::New(Nan::Undefined()),
+      Nan::Local<v8::Value>::New(reader),
+      Nan::Local<v8::Value>::New(Nan::Undefined())
     };
-    data->callback->Call(Context::GetCurrent()->Global(), argc, argv);
+    data->callback->Call(Nan::GetCurrentContext()->Global(), argc, argv);
   }
-  scope.Close(Undefined());
   return;
 }
 #endif // USE_LIBNFC
 
-Handle<Value> ReaderRelease(const Arguments &args) {
-  HandleScope scope;
-  Local<Object> self = args.This();
-  reader_data *data = static_cast<reader_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
-  if(args.Length()!=0) {
-    ThrowException(Exception::TypeError(String::New("release does not take any arguments")));
-    return scope.Close(Undefined());
-  }
-
-  //if(data->timer) {
-    uv_timer_stop(&data->timer);
-  //}
+void ReaderRelease(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+  reader_data *data = reader_data_from_info(info);
+  if(info.Length()!=0) {
+    Nan::ThrowError("release does not take any arguments");
+  } else {
+    //if(data->timer) {
+      uv_timer_stop(&data->timer);
+    //}
 #ifndef USE_LIBNFC
-  SCardReleaseContext(data->context->context);
+    SCardReleaseContext(data->context->context);
 #else
-  uv_mutex_lock(&data->mDevice);
-  if (data->device)
-    nfc_close(data->device);
-  uv_mutex_unlock(&data->mDevice);
+    GuardReader reader_guard(data, true);
+    if (data->device)
+      nfc_close(data->device);
 #endif
-  data->callback.Dispose();
-  data->callback.Clear();
-  data->self.Dispose();
-  data->self.Clear();
-  return scope.Close(args.This());
+    data->callback.Reset();
+    data->self.Reset();
+    info.GetReturnValue().Set(info.This());
+  }
 }
 
-Handle<Value> ReaderListen(const Arguments& args) {
-  HandleScope scope;
-  Local<Object> self = args.This();
-  reader_data *data = static_cast<reader_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
-  if(args.Length()!=1 || !args[0]->IsFunction()) {
-    ThrowException(Exception::TypeError(String::New("The only argument to listen has to be a callback function")));
-    return scope.Close(Undefined());
-  }
+void ReaderListen(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+  reader_data *data = reader_data_from_info(info);
+  if(info.Length()!=1 || !info[0]->IsFunction()) {
+    Nan::ThrowError("The only argument to listen has to be a callback function");
+  } else{
 
 #ifndef USE_LIBNFC
 #else
-  uv_mutex_lock(&data->mDevice);
-  if (data->context && data->device == NULL)
-    data->device = nfc_open(data->context, data->name.c_str());
-  uv_mutex_unlock(&data->mDevice);
-
+    GuardReader reader_guard(data, true);
+    if (data->context && data->device == NULL)
+      data->device = nfc_open(data->context, data->name.c_str());
 #endif
-  data->callback = Persistent<Function>::New(Local<Function>::Cast(args[0]));
-  data->self = Persistent<Object>::New(self);
+    data->callback.Reset(Nan::Persistent<v8::Function>(info[0].As<v8::Function>()));
+    data->self.Reset(Nan::Persistent<v8::Object>(info.This()));
 
-  uv_timer_init(uv_default_loop(), &data->timer);
-  uv_timer_start(&data->timer, reader_timer_callback, 500, 250);
-  return scope.Close(args.This());
+    uv_timer_init(uv_default_loop(), &data->timer);
+    uv_timer_start(&data->timer, reader_timer_callback, 500, 250);
+    info.GetReturnValue().Set(info.This());
+  }
 }
 
 #if defined (_WIN32)
@@ -357,9 +333,7 @@ Handle<Value> ReaderListen(const Arguments& args) {
 #    error "Can't determine serial string for your system"
 #endif
 #include <iomanip>
-Handle<Value> ReaderSetLed(const Arguments& args) {
-  HandleScope scope;
-  Local<Object> self = args.This();
+void ReaderSetLed(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 #ifndef USE_LIBNFC
   const uint32_t sSize = 9;
   uint8_t sBuffer[sSize] = {0xFF, 0x00, 0x40, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00};
@@ -370,44 +344,44 @@ Handle<Value> ReaderSetLed(const Arguments& args) {
   DWORD dwActiveProtocol;
   LONG rv;
 
-  if(args.Length()==0 || args.Length() > 5) {
-    ThrowException(Exception::TypeError(String::New("This function must have up to 5 unsigned chars as arguments")));
-    return scope.Close(Undefined());
-  }
+  if(info.Length()==0 || info.Length() > 5) {
+    Nan::ThrowError("This function must have up to 5 unsigned chars as arguments");
+  } else {
 
-  for(int i = 0; i < args.Length(); i++) {
-    sBuffer[pos[i]] = args[i]->ToUint32()->Value();
-  }
+    for(int i = 0; i < info.Length(); i++) {
+      sBuffer[pos[i]] = info[i]->ToUint32()->Value();
+    }
 
-  reader_data *data = static_cast<reader_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
-  rv = SCardConnect(data->context->context, data->name.c_str(), SCARD_SHARE_DIRECT, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, &hCard, &dwActiveProtocol);
-  //rv = SCardControl(hCard, IOCTL_CCID_ESCAPE_SCARD_CTL_CODE, sBuffer, sSize, rBuffer, rSize, &rLength);
-  int retCode = SCardTransmit(hCard, NULL, sBuffer, sSize, NULL, rBuffer, &rSize);
-  std::cout << "rv: " << std::hex << rv << std::endl;
-  std::cout << "sent: "
-            << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[0] << " "
-            << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[1] << " "
-            << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[2] << " "
-            << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[3] << " "
-            << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[4] << " "
-            << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[5] << " "
-            << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[6] << " "
-            << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[7] << " "
-            << std::hex << std::setw(2) << std::setfill('0')
-            << (int)sBuffer[8] << " "
-            << std::endl;
-  std::cout << "retCode: " << std::hex << retCode << std::endl;
-  rv = SCardDisconnect(hCard, SCARD_LEAVE_CARD);
+    reader_data *data = reader_data_from_info(info);
+    rv = SCardConnect(data->context->context, data->name.c_str(), SCARD_SHARE_DIRECT, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, &hCard, &dwActiveProtocol);
+    //rv = SCardControl(hCard, IOCTL_CCID_ESCAPE_SCARD_CTL_CODE, sBuffer, sSize, rBuffer, rSize, &rLength);
+    int retCode = SCardTransmit(hCard, NULL, sBuffer, sSize, NULL, rBuffer, &rSize);
+    std::cout << "rv: " << std::hex << rv << std::endl;
+    std::cout << "sent: "
+              << std::hex << std::setw(2) << std::setfill('0')
+              << (int)sBuffer[0] << " "
+              << std::hex << std::setw(2) << std::setfill('0')
+              << (int)sBuffer[1] << " "
+              << std::hex << std::setw(2) << std::setfill('0')
+              << (int)sBuffer[2] << " "
+              << std::hex << std::setw(2) << std::setfill('0')
+              << (int)sBuffer[3] << " "
+              << std::hex << std::setw(2) << std::setfill('0')
+              << (int)sBuffer[4] << " "
+              << std::hex << std::setw(2) << std::setfill('0')
+              << (int)sBuffer[5] << " "
+              << std::hex << std::setw(2) << std::setfill('0')
+              << (int)sBuffer[6] << " "
+              << std::hex << std::setw(2) << std::setfill('0')
+              << (int)sBuffer[7] << " "
+              << std::hex << std::setw(2) << std::setfill('0')
+              << (int)sBuffer[8] << " "
+              << std::endl;
+    std::cout << "retCode: " << std::hex << retCode << std::endl;
+    rv = SCardDisconnect(hCard, SCARD_LEAVE_CARD);
 
 #endif
-  return scope.Close(args.This());
+    info.GetReturnValue().Set(info.This());
+  }
 }
 

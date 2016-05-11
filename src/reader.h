@@ -3,8 +3,8 @@
 #ifndef READER_H
 #define READER_H
 
-#include <node.h>
-#include <v8.h>
+#include <nan.h>
+#include <uv.h>
 #include <node_buffer.h>
 #include <vector>
 #include <iostream>
@@ -23,12 +23,6 @@
 #include <freefare_nfc.h>
 #endif // USE_LIBNFC
 #include <cstdlib>
-
-
-using namespace v8;
-using namespace node;
-
-
 
 struct reader_data {
   /**
@@ -56,21 +50,21 @@ struct reader_data {
     this->context = context;
     this->last_err = NFC_ENOTSUCHDEV;
     this->device = device;
-    uv_mutex_init(&this->mDevice);
 #endif
+    uv_mutex_init(&this->mDevice);
   }
 
+  ~reader_data() {
 #if ! defined(USE_LIBNFC)
 #else
-  ~reader_data() {
     this->device = NULL;
+#endif
     uv_mutex_destroy(&this->mDevice);
   };
-#endif
 
   std::string name;
   uv_timer_t timer;
-#ifndef USE_LIBNFC
+#if ! defined(USE_LIBNFC)
   SCARD_READERSTATE state;
   pcsc_context *context;
 #else
@@ -78,15 +72,20 @@ struct reader_data {
   int last_err;
   std::vector< char* > last_uids;
   nfc_device *device;
-  uv_mutex_t mDevice;
 #endif
-  Persistent<Function> callback;
-  Persistent<Object> self;
+  uv_mutex_t mDevice;
+  Nan::Persistent<v8::Function> callback;
+  Nan::Persistent<v8::Object> self;
 };
 
+reader_data *reader_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
+#if NODE_VERSION_AT_LEAST(0, 12, 0)
+void reader_timer_callback(uv_timer_t *handle);
+#else
 void reader_timer_callback(uv_timer_t *handle, int timer_status);
-Handle<Value> ReaderRelease(const Arguments& args);
-Handle<Value> ReaderListen(const Arguments& args);
-Handle<Value> ReaderSetLed(const Arguments& args);
+#endif
+void ReaderRelease(const Nan::FunctionCallbackInfo<v8::Value>& info);
+void ReaderListen(const Nan::FunctionCallbackInfo<v8::Value>& info);
+void ReaderSetLed(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
 #endif // READER_H

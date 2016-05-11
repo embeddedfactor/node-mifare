@@ -3,8 +3,7 @@
 #ifndef DESFIRE_H
 #define DESFIRE_H
 
-#include <node.h>
-#include <v8.h>
+#include <nan.h>
 #include <vector>
 #include <iostream>
 #include <cstring>
@@ -23,9 +22,6 @@
 
 #include "reader.h"
 #include <cstdlib>
-
-using namespace v8;
-using namespace node;
 
 #if ! defined(USE_LIBNFC)
 #else
@@ -103,36 +99,38 @@ struct card_data {
 };
 
 
-Handle<Value> CardInfo(const Arguments& args);
+card_data *card_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardMasterKeyInfo(const Arguments& args);
+void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardName(const Arguments& args);
+void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardKeyVersion(const Arguments& args);
+void CardName(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardFreeMemory(const Arguments& args);
+void CardKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardSetAid(const Arguments& args);
+void CardFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardSetKey(const Arguments & args);
+void CardSetAid(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardFormat(const Arguments& args);
+void CardSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardCreateNdef(const Arguments &args);
+void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info);
+
+void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 /**
  * Helper function to locate and read TVL of a desfire ndef sector
  * @return Might return a result object. This is only used when res is lesser 0 otherwise the object is empty.
  */
-Local<Object> CardReadNdefTVL(card_data *data, int &res, uint8_t &file_no, uint16_t &ndefmaxlen, MifareDESFireKey key_app);
+int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &info, card_data *data, uint8_t &file_no, uint16_t &ndefmaxlen, MifareDESFireKey key_app);
 
-Handle<Value> CardReadNdef(const Arguments& args);
+void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardWriteNdef(const Arguments& args);
+void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardCreateNdef(const Arguments& args);
+void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-Handle<Value> CardFree(const Arguments& args);
+void CardFree(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 #endif // DESFIRE_H

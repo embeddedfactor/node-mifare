@@ -1,8 +1,7 @@
 // Copyright 2013, Rolf Meyer
 // See LICENCE for more information
 
-#include <node.h>
-#include <v8.h>
+#include <nan.h>
 #include <node_buffer.h>
 #include <vector>
 #include <iostream>
@@ -10,9 +9,6 @@
 
 
 #include "reader.h"
-
-using namespace v8;
-using namespace node;
 
 /**
  * plugin global secure card context
@@ -28,13 +24,15 @@ void deinitialize_nfc_context(int p) {
 }
 #endif
 static std::vector<reader_data *> readers_data;
+static Nan::Persistent<v8::Object> readers_global(Nan::New<v8::Object>());
+
 
 /**
  * Get Names of the Readers connected to the computer
  * @param hContext The SCard Context used to search
  * @return An Array of Strings with reader names
  **/
-Handle<Value> getReader(const Arguments& args) {
+void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 #ifndef USE_LIBNFC
   LONG res;
   char *reader_names;
@@ -45,28 +43,26 @@ Handle<Value> getReader(const Arguments& args) {
 #endif
   char *reader_iter = NULL;
   int   reader_count = 0;
+  // Allocate buffer. We assume autoallocate is not present (on Mac OS X anyway)
+  v8::Local<v8::Object> readers_local = Nan::New<v8::Object>(readers_global);
 
-  HandleScope scope;
-  Persistent<Object> readers;
-
-  if(args.Length() > 0){
-    ThrowException(Exception::TypeError(String::New("This function does not take any arguments")));
-    return scope.Close(Undefined());
+  if(info.Length() > 0){
+    Nan::ThrowError("This function does not take any arguments");
+    return;
   }
 
-  // Allocate buffer. We assume autoallocate is not present (on Mac OS X anyway)
-  readers = Persistent<Object>::New(Object::New());
 #ifndef USE_LIBNFC
   res = pcsc_list_devices(context, &reader_names);
   if(res != SCARD_S_SUCCESS || reader_names[0] == '\0') {
     //delete [] reader_names;
-    ThrowException(Exception::Error(String::New("Unable to list readers")));
-    return scope.Close(Undefined());
+    Nan::ThrowError("Unable to list readers");
+    return;
   }
 #else
   numDevices = nfc_list_devices(context, reader_names, MAX_READERS);
   if(numDevices == 0) {
-    return scope.Close(readers);
+    info.GetReturnValue().Set(Nan::New<v8::Object>(readers_global));
+    return;
   }
 #endif
 
@@ -105,14 +101,14 @@ Handle<Value> getReader(const Arguments& args) {
     readers_data.push_back(new reader_data(reader_iter, context, NULL));
 #endif
     // Node Object:
-    Local<External> data = Local<External>::New(External::New(readers_data.back()));
-    Local<Object> reader = Local<Object>::New(Object::New());
-    reader->Set(String::NewSymbol("name"), String::New(reader_iter));
-    reader->Set(String::NewSymbol("listen"), FunctionTemplate::New(ReaderListen)->GetFunction());
-    reader->Set(String::NewSymbol("setLed"), FunctionTemplate::New(ReaderSetLed)->GetFunction());
-    reader->Set(String::NewSymbol("release"), FunctionTemplate::New(ReaderRelease)->GetFunction());
-    reader->SetHiddenValue(String::NewSymbol("data"), data);
-    readers->Set(String::NewSymbol(reader_iter), reader);
+    v8::Local<v8::External> data = Nan::New<v8::External>(readers_data.back());
+    v8::Local<v8::Object> reader = Nan::New<v8::Object>();
+    reader->Set(Nan::New("name").ToLocalChecked(), Nan::New(reader_iter).ToLocalChecked());
+    reader->Set(Nan::New("listen").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(ReaderListen)->GetFunction());
+    reader->Set(Nan::New("setLed").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(ReaderSetLed)->GetFunction());
+    reader->Set(Nan::New("release").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(ReaderRelease)->GetFunction());
+    reader->SetHiddenValue(Nan::New("data").ToLocalChecked(), data);
+    readers_local->Set(Nan::New(reader_iter).ToLocalChecked(), reader);
 #ifndef USE_LIBNFC
     reader_iter += strlen(reader_iter)+1;
     reader_count++;
@@ -122,7 +118,8 @@ Handle<Value> getReader(const Arguments& args) {
   }
   //delete [] reader_names;
 
-  return scope.Close(readers); 
+  info.GetReturnValue().Set(readers_local);
+  return;
 }
 
 /**
@@ -130,19 +127,19 @@ Handle<Value> getReader(const Arguments& args) {
  * @param exports The Commonjs module exports object
  **/
 
-void init(Handle<Object> exports) {
+void init(v8::Local<v8::Object> exports) {
 #ifndef USE_LIBNFC
   pcsc_init(&context);
 #else
   nfc_init(&context);
 #endif
   if(!context) {
-    ThrowException(Exception::Error(String::New("Cannot establish context")));
-    return; 
+    Nan::ThrowError("Cannot establish context");
+    return;
   }
 
-  exports->Set(String::NewSymbol("getReader"),
-      FunctionTemplate::New(getReader)->GetFunction());
+  exports->Set(Nan::New("getReader").ToLocalChecked(),
+      Nan::New<v8::FunctionTemplate>(getReader)->GetFunction());
 	// AtExit(&PCSC::close);
 }
 

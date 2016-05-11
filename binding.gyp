@@ -18,7 +18,10 @@
           ],
         }]
       ],
-      "include_dirs": ["<(source_dir)"],
+      "include_dirs": [
+        "<!(node -e \"require('nan')\")",
+        "<(source_dir)"
+      ],
       "sources": [
         "src/mifare.cc",
         "src/reader.cc",

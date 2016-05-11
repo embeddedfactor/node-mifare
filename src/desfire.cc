@@ -4,98 +4,125 @@
 #include "desfire.h"
 #include "utils.h"
 
-#if ! defined(USE_LIBNFC)
-static inline void lock_device(reader_data *r) {}
-
-static inline void unlock_device(reader_data *r) {}
-#else
-static inline void lock_device(reader_data *r) {
-  uv_mutex_lock(&r->mDevice);
+card_data *card_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  //card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+  return static_cast<card_data *>(
+    v8::Local<v8::External>::Cast(
+      info.This()->GetHiddenValue(
+        Nan::New("data").ToLocalChecked()
+      )
+    )->Value()
+  );
 }
 
-static inline void unlock_device(reader_data *r) {
-  uv_mutex_unlock(&r->mDevice);
-}
-#endif
+class GuardTag {
+  public:
+    GuardTag(FreefareTag tag, int &res, bool connect = false) : m_tag(tag), m_connected(false) {
+      if(connect) {
+        res = this->connect();
+      }
+    }
+    ~GuardTag() { disconnect(); }
+    int connect() {
+      int res = 0;
+      if(!m_connected) {
+        res = mifare_desfire_connect(m_tag);
+      }
+      m_connected = true;
+      return res;
+    }
+    void disconnect() { if( m_connected) mifare_desfire_disconnect(m_tag); m_connected = false; }
+  private:
+    FreefareTag m_tag;
+    bool m_connected;
+};
 
-Handle<Value> CardInfo(const Arguments& args) {
+class GuardReader {
+  public:
+    GuardReader(reader_data *reader, bool lock = false)
+      : m_reader(reader), m_locked(false)
+      { if(lock) this->lock(); }
+    ~GuardReader() { unlock(); }
+    void lock()   { if(!m_locked) uv_mutex_lock(  &m_reader->mDevice); m_locked = true; }
+    void unlock() { if( m_locked) uv_mutex_unlock(&m_reader->mDevice); m_locked = false; }
+  private:
+    reader_data *m_reader;
+    bool m_locked;
+};
+
+void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
   int res;
-  HandleScope scope;
-  Local<Object> self = args.This();
-  Local<Object> card = Object::New();
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
-  if(!data) {
-    return scope.Close(errorResult(0x12301, "Card is already free"));
-  }
-
-  if(args.Length()!=0) {
-    return scope.Close(errorResult(0x12302, "This function takes no arguments"));
-  }
-  lock_device(data->reader);
-  res = mifare_desfire_connect(data->tag);
-  if(res) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
-  }
-
+  v8::Local<v8::Object> card = Nan::New<v8::Object>();
+  card_data *data = card_data_from_info(v8info);
   struct mifare_desfire_version_info info;
-  res = mifare_desfire_get_version(data->tag, &info);
-  if(res) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12304, freefare_strerror(data->tag)));
+  if(!data) {
+    return errorResult(v8info, 0x12301, "Card is already free");
   }
-  mifare_desfire_disconnect(data->tag);
-  unlock_device(data->reader);
 
-  Local<Array> uid = Local<Array>::New(Array::New(7));
+  if(v8info.Length()!=0) {
+    return errorResult(v8info, 0x12302, "This function takes no arguments");
+  }
+  { // Guarded realm;
+    GuardReader reader_guard(data->reader, true);
+    GuardTag tag_guard(data->tag, res, true);
+    if(res) {
+      return errorResult(v8info, 0x12303, "Can't conntect to Mifare DESFire target.");
+    }
+
+    res = mifare_desfire_get_version(data->tag, &info);
+    if(res) {
+      return errorResult(v8info, 0x12304, freefare_strerror(data->tag));
+    }
+  }
+
+  v8::Local<v8::Array> uid = Nan::New<v8::Array>(7);
   for(unsigned int j=0; j<7; j++) {
-    uid->Set(j, Integer::New(info.uid[j]));
+    uid->Set(j, Nan::New(info.uid[j]));
   }
-  card->Set(String::NewSymbol("uid"), uid);
+  card->Set(Nan::New("uid").ToLocalChecked(), uid);
 
-  Local<Array> bno = Local<Array>::New(Array::New(5));
+  v8::Local<v8::Array> bno = Nan::New<v8::Array>(5);
   for(unsigned int j=0; j<5; j++) {
-    bno->Set(j, Integer::New(info.batch_number[j]));
+    bno->Set(j, Nan::New(info.batch_number[j]));
   }
-  card->Set(String::NewSymbol("batchNumber"), bno);
+  card->Set(Nan::New("batchNumber").ToLocalChecked(), bno);
 
-  Local<Object> pdate = Object::New();
-  pdate->Set(String::NewSymbol("week"), Number::New(info.production_week));
-  pdate->Set(String::NewSymbol("year"), Number::New(info.production_year));
-  card->Set(String::NewSymbol("production"), pdate);
+  v8::Local<v8::Object> pdate = Nan::New<v8::Object>();
+  pdate->Set(Nan::New("week").ToLocalChecked(), Nan::New(info.production_week));
+  pdate->Set(Nan::New("year").ToLocalChecked(), Nan::New(info.production_year));
+  card->Set(Nan::New("production").ToLocalChecked(), pdate);
 
-  Local<Object> hardware = Object::New();
-  hardware->Set(String::NewSymbol("vendorId"), Number::New(info.hardware.vendor_id));
-  hardware->Set(String::NewSymbol("type"), Number::New(info.hardware.type));
-  hardware->Set(String::NewSymbol("subtype"), Number::New(info.hardware.subtype));
+  v8::Local<v8::Object> hardware = Nan::New<v8::Object>();
+  hardware->Set(Nan::New("vendorId").ToLocalChecked(), Nan::New(info.hardware.vendor_id));
+  hardware->Set(Nan::New("type").ToLocalChecked(), Nan::New(info.hardware.type));
+  hardware->Set(Nan::New("subtype").ToLocalChecked(), Nan::New(info.hardware.subtype));
 
-  Local<Object> hw_version = Object::New();
-  hw_version->Set(String::NewSymbol("major"), Number::New(info.hardware.version_major));
-  hw_version->Set(String::NewSymbol("minor"), Number::New(info.hardware.version_minor));
-  hardware->Set(String::NewSymbol("version"), hw_version);
+  v8::Local<v8::Object> hw_version = Nan::New<v8::Object>();
+  hw_version->Set(Nan::New("major").ToLocalChecked(), Nan::New(info.hardware.version_major));
+  hw_version->Set(Nan::New("minor").ToLocalChecked(), Nan::New(info.hardware.version_minor));
+  hardware->Set(Nan::New("version").ToLocalChecked(), hw_version);
+  hardware->Set(Nan::New("storageSize").ToLocalChecked(), Nan::New(info.hardware.storage_size));
+  hardware->Set(Nan::New("protocol").ToLocalChecked(), Nan::New(info.hardware.protocol));
+  card->Set(Nan::New("hardware").ToLocalChecked(), hardware);
 
-  hardware->Set(String::NewSymbol("storageSize"), Number::New(info.hardware.storage_size));
-  hardware->Set(String::NewSymbol("protocol"), Number::New(info.hardware.protocol));
-  card->Set(String::NewSymbol("hardware"), hardware);
+  v8::Local<v8::Object> software = Nan::New<v8::Object>();
+  software->Set(Nan::New("vendorId").ToLocalChecked(), Nan::New(info.software.vendor_id));
+  software->Set(Nan::New("type").ToLocalChecked(), Nan::New(info.software.type));
+  software->Set(Nan::New("subtype").ToLocalChecked(), Nan::New(info.software.subtype));
 
-  Local<Object> software = Object::New();
-  software->Set(String::NewSymbol("vendorId"), Number::New(info.software.vendor_id));
-  software->Set(String::NewSymbol("type"), Number::New(info.software.type));
-  software->Set(String::NewSymbol("subtype"), Number::New(info.software.subtype));
+  v8::Local<v8::Object> sw_version = Nan::New<v8::Object>();
+  sw_version->Set(Nan::New("major").ToLocalChecked(), Nan::New(info.software.version_major));
+  sw_version->Set(Nan::New("minor").ToLocalChecked(), Nan::New(info.software.version_minor));
+  software->Set(Nan::New("version").ToLocalChecked(), sw_version);
 
-  Local<Object> sw_version = Object::New();
-  sw_version->Set(String::NewSymbol("major"), Number::New(info.software.version_major));
-  sw_version->Set(String::NewSymbol("minor"), Number::New(info.software.version_minor));
-  software->Set(String::NewSymbol("version"), sw_version);
+  software->Set(Nan::New("storageSize").ToLocalChecked(), Nan::New(info.software.storage_size));
+  software->Set(Nan::New("protocol").ToLocalChecked(), Nan::New(info.software.protocol));
+  card->Set(Nan::New("software").ToLocalChecked(), software);
 
-  software->Set(String::NewSymbol("storageSize"), Number::New(info.software.storage_size));
-  software->Set(String::NewSymbol("protocol"), Number::New(info.software.protocol));
-  card->Set(String::NewSymbol("software"), software);
-
-  return scope.Close(card);
+  v8info.GetReturnValue().Set(card);
 }
 
-Handle<Value> CardMasterKeyInfo(const Arguments& args) {
+void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 #if ! defined(USE_LIBNFC)
   LONG res;
 #else
@@ -103,162 +130,123 @@ Handle<Value> CardMasterKeyInfo(const Arguments& args) {
 #endif
   uint8_t settings;
   uint8_t max_keys;
-  HandleScope scope;
-  Local<Object> self = args.This();
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12305, "Card is already free"));
+    return  errorResult(info, 0x12305, "Card is already free");
   }
 
-  if(args.Length()!=0) {
-    return scope.Close(errorResult(0x12306, "This function takes no arguments"));
+  if(info.Length()!=0) {
+    return errorResult(info, 0x12306, "This function takes no arguments");
   }
-  lock_device(data->reader);
-  res = mifare_desfire_connect(data->tag);
+  GuardReader reader_guard(data->reader, true);
+  GuardTag tag_guard(data->tag, res, true);
   if(res < 0) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
+    return errorResult(info, 0x12303, "Can't conntect to Mifare DESFire target.");
   }
 
   res = mifare_desfire_get_key_settings(data->tag, &settings, &max_keys);
   if(!res) {
-    Local<Object> key = Object::New();
-    key->Set(String::NewSymbol("configChangable"), Boolean::New((settings & 0x08)));
-    key->Set(String::NewSymbol("freeCreateDelete"), Boolean::New((settings & 0x04)));
-    key->Set(String::NewSymbol("freeDirectoryList"), Boolean::New((settings & 0x02)));
-    key->Set(String::NewSymbol("keyChangable"), Boolean::New((settings & 0x01)));
-    key->Set(String::NewSymbol("maxKeys"), Integer::New((max_keys)));
-
-    mifare_desfire_disconnect(data->tag);
-
-    unlock_device(data->reader);
-    return scope.Close(key);
+    v8::Local<v8::Object> key = Nan::New<v8::Object>();
+    key->Set(Nan::New("configChangable").ToLocalChecked(), Nan::New(bool(settings & 0x08)));
+    key->Set(Nan::New("freeCreateDelete").ToLocalChecked(), Nan::New(bool(settings & 0x04)));
+    key->Set(Nan::New("freeDirectoryList").ToLocalChecked(), Nan::New(bool(settings & 0x02)));
+    key->Set(Nan::New("keyChangable").ToLocalChecked(), Nan::New(bool(settings & 0x01)));
+    key->Set(Nan::New("maxKeys").ToLocalChecked(), Nan::New((max_keys)));
+    return info.GetReturnValue().Set(key);
   } else if (AUTHENTICATION_ERROR == mifare_desfire_last_picc_error(data->tag)) {
-    Local<String> key = String::New("LOCKED");
-
-    mifare_desfire_disconnect(data->tag);
-
-    unlock_device(data->reader);
-    return scope.Close(key);
+    return errorResult(info, 0x12307, "LOCKED");
   } else {
-
-    mifare_desfire_disconnect(data->tag);
-
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12307, freefare_strerror(data->tag)));
+    return errorResult(info, 0x12307, freefare_strerror(data->tag));
   }
 }
 
-Handle<Value> CardName(const Arguments& args) {
-  HandleScope scope;
-  Local<Object> self = args.This();
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+void CardName(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12301, "Card is already free"));
+    return errorResult(info, 0x12301, "Card is already free");
   }
 
   int res;
-  if(args.Length()!=0) {
-    return scope.Close(errorResult(0x12302, "This function takes no arguments"));
+  if(info.Length()!=0) {
+    return errorResult(info, 0x12302, "This function takes no arguments");
   }
 
-  lock_device(data->reader);
-  res = mifare_desfire_connect(data->tag);
+  GuardReader reader_guard(data->reader, true);
+  GuardTag tag_guard(data->tag, res, true);
   if(res) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
+    return errorResult(info, 0x12303, "Can't conntect to Mifare DESFire target.");
   }
-
-  Local<String> name = String::New(freefare_get_tag_friendly_name(data->tag));
-  mifare_desfire_disconnect(data->tag);
-  unlock_device(data->reader);
-  return scope.Close(name);
+  info.GetReturnValue().Set(Nan::New(freefare_get_tag_friendly_name(data->tag)).ToLocalChecked());
 }
 
-Handle<Value> CardKeyVersion(const Arguments& args) {
+void CardKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   int res;
   uint8_t version;
-  HandleScope scope;
-  Local<Object> self = args.This();
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12301, "Card is already free"));
+    return errorResult(info, 0x12301, "Card is already free");
   }
 
-  if(args.Length()!=1 || !args[0]->IsNumber()) {
-    return scope.Close(errorResult(0x12302, "This function takes a key number as arguments"));
+  if(info.Length()!=1 || !info[0]->IsNumber()) {
+    return errorResult(info, 0x12302, "This function takes a key number as arguments");
   }
-  lock_device(data->reader);
-  res = mifare_desfire_connect(data->tag);
+  GuardReader reader_guard(data->reader, true);
+  GuardTag tag_guard(data->tag, res, true);
   if(res) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
+    errorResult(info, 0x12303, "Can't conntect to Mifare DESFire target.");
+    return;
   }
 
-  res = mifare_desfire_get_key_version(data->tag, args[0]->ToUint32()->Value(), &version);
+  res = mifare_desfire_get_key_version(data->tag, info[0]->ToUint32()->Value(), &version);
   if(res) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12308, freefare_strerror(data->tag)));
+    errorResult(info, 0x12308, freefare_strerror(data->tag));
+    return;
   }
-  mifare_desfire_disconnect(data->tag);
-  unlock_device(data->reader);
-  return scope.Close(Local<Number>::New(Number::New(version)));
+  info.GetReturnValue().Set(Nan::New(version));
 }
 
-Handle<Value> CardFreeMemory(const Arguments& args) {
-#if ! defined(USE_LIBNFC)
-  LONG res;
-#else
+void CardFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   int res;
-#endif
   uint32_t size;
-  HandleScope scope;
-  Local<Object> self = args.This();
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12301, "Card is already free"));
+    return errorResult(info, 0x12301, "Card is already free");
   }
 
-  if(args.Length()!=0) {
-    return scope.Close(errorResult(0x12302, "This function takes no arguments"));
+  if(info.Length()!=0) {
+    return errorResult(info, 0x12302, "This function takes no arguments");
   }
 
-  lock_device(data->reader);
-  res = mifare_desfire_connect(data->tag);
+  GuardReader reader_guard(data->reader, true);
+  GuardTag tag_guard(data->tag, res, true);
   if(res) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
+    return errorResult(info, 0x12303, "Can't conntect to Mifare DESFire target.");
   }
 
   res = mifare_desfire_free_mem(data->tag, &size);
-  mifare_desfire_disconnect(data->tag);
   if(res) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12309, freefare_strerror(data->tag)));
+    return errorResult(info, 0x12309, freefare_strerror(data->tag));
   }
-  unlock_device(data->reader);
-  return scope.Close(Local<Number>::New(Number::New(size)));
+  info.GetReturnValue().Set(Nan::New(size));
 }
 
-Handle<Value> CardSetAid(const Arguments& args) {
-  HandleScope scope;
-  Local<Object> self = args.This();
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+void CardSetAid(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12301, "Card is already free"));
+    return errorResult(info, 0x12301, "Card is already free");
   }
 
-  if(args.Length()!=1 || !args[0]->IsNumber() || args[0]->ToUint32()->Value() > 0xFFFFFF) {
-    return scope.Close(errorResult(0x12302, "This function takes the aid as argument a number smaller than 0x1000000"));
+  if(info.Length()!=1 || !info[0]->IsNumber() || info[0]->ToUint32()->Value() > 0xFFFFFF) {
+    return errorResult(info, 0x12302, "This function takes the aid as argument a number smaller than 0x1000000");
   }
   if(data->aid) {
     free(data->aid);
   }
-  data->aid = mifare_desfire_aid_new(args[0]->ToUint32()->Value());
-  return scope.Close(validTrue());
+  data->aid = mifare_desfire_aid_new(info[0]->ToUint32()->Value());
+  validTrue(info);
 }
 
-Handle<Value> CardSetKey(const Arguments & args) {
+void CardSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   typedef MifareDESFireKey (*callback_t)(const uint8_t *);
   callback_t callbacks[4][2] = {
     {mifare_desfire_des_key_new, mifare_desfire_des_key_new_with_version},
@@ -266,11 +254,10 @@ Handle<Value> CardSetKey(const Arguments & args) {
     {mifare_desfire_3k3des_key_new, mifare_desfire_3k3des_key_new_with_version},
     {mifare_desfire_aes_key_new, NULL}
   };
-  HandleScope scope;
-  Local<Object> self = args.This();
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12301, "Card is already free"));
+    return errorResult(info, 0x12301, "Card is already free");
   }
 
   uint8_t key_val[24];
@@ -287,49 +274,49 @@ Handle<Value> CardSetKey(const Arguments & args) {
     "The third is version a boolean describing wether the key is versioned. It will default to false"
     "If you choose to use an \"aes\" key the fourth argument is the aes version a number smaller 255"
   );
-  if(args.Length()==0 || args.Length()>4 || !args[0]->IsArray() ||
-      (args.Length()>1 && !args[1]->IsString()) ||
-      (args.Length()>2 && !args[2]->IsBoolean()) ||
-      (args.Length()>3 && !args[3]->IsUint32()) ||
-      (args.Length()>3 && args[3]->ToUint32()->Value()>255)
+  if(info.Length()==0 || info.Length()>4 || !info[0]->IsArray() ||
+      (info.Length()>1 && !info[1]->IsString()) ||
+      (info.Length()>2 && !info[2]->IsBoolean()) ||
+      (info.Length()>3 && !info[3]->IsUint32()) ||
+      (info.Length()>3 && info[3]->ToUint32()->Value()>255)
     ) {
-    return scope.Close(errorResult(0x12302, error));
+    return errorResult(info, 0x12302, error);
   }
 
-  if(args.Length()>2) {
-    version = args[2]->BooleanValue();
+  if(info.Length()>2) {
+    version = info[2]->BooleanValue();
   }
 
-  if(args.Length()>1) {
-    Local<String> t = Local<String>::Cast(args[1]);
-    if(t->Equals(String::New("aes"))) {
+  if(info.Length()>1) {
+    v8::Local<v8::String> t = v8::Local<v8::String>::Cast(info[1]);
+    if(t->Equals(Nan::New("aes").ToLocalChecked())) {
       type = 3;
       max_len = 16;
-    } else if(t->Equals(String::New("3k3des"))) {
+    } else if(t->Equals(Nan::New("3k3des").ToLocalChecked())) {
       type = 2;
       max_len = 24;
-    } else if(t->Equals(String::New("3des"))) {
+    } else if(t->Equals(Nan::New("3des").ToLocalChecked())) {
       type = 1;
       max_len = 16;
     }
   }
 
-  if(type == 3 && args.Length() > 3) {
-    aes_ver = (uint8_t)(args[3]->ToUint32()->Value()&0xFF);
+  if(type == 3 && info.Length() > 3) {
+    aes_ver = (uint8_t)(info[3]->ToUint32()->Value()&0xFF);
   }
 
-  if(args[0]->IsArray()) {
-    Local<Array> key = Local<Array>::Cast(args[0]);
+  if(info[0]->IsArray()) {
+    v8::Local<v8::Array> key = v8::Local<v8::Array>::Cast(info[0]);
     if(key->Length()!=max_len) {
-      return scope.Close(errorResult(0x12302, error));
+      return errorResult(info, 0x12302, error);
     }
     for(uint32_t i=0; i<max_len; i++) {
-      Local<Value> k = key->Get(i);
+      v8::Local<v8::Value> k = key->Get(i);
       if(!k->IsInt32()) {
-        return scope.Close(errorResult(0x12302, error));
+        return errorResult(info, 0x12302, error);
       }
       if(((int32_t)k->ToInt32()->Value())>255) {
-        return scope.Close(errorResult(0x12302, error));
+        return errorResult(info, 0x12302, error);
       }
       key_val[i] = (uint8_t)(((uint32_t)k->ToUint32()->Value()) & 0xFF);
     }
@@ -347,20 +334,18 @@ Handle<Value> CardSetKey(const Arguments & args) {
     key_val[i] = 0;
   }
 
-  return scope.Close(args.This());
+  info.GetReturnValue().Set(info.This());
 }
 
-Handle<Value> CardFormat(const Arguments& args) {
-  HandleScope scope;
-  Local<Object> self = args.This();
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12301, "Card is already free"));
+    return errorResult(info, 0x12301, "Card is already free");
   }
 
   uint8_t key_data_picc[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-  if(args.Length()>1 || (args.Length()==1 && !args[0]->IsObject())) {
-    return scope.Close(errorResult(0x12302, "The only argument to listen has to be a callback function"));
+  if(info.Length()>1 || (info.Length()==1 && !info[0]->IsObject())) {
+    return errorResult(info, 0x12302, "The only argument to listen has to be a callback function");
   }
   // Send Mifare DESFire ChangeKeySetting to change the PICC master key settings into :
   // bit7-bit4 equal to 0000b
@@ -368,60 +353,47 @@ Handle<Value> CardFormat(const Arguments& args) {
   // bit2 equal to 1b, CreateApplication and DeleteApplication commands are allowed without PICC master key authentication
   // bit1 equal to 1b, GetApplicationIDs, and GetKeySettings are allowed without PICC master key authentication
   // bit0 equal to 1b, PICC masterkey MAY be frozen or changeable
-  Local<Object> options = args.Length()==1? Local<Object>::Cast(args[0]) : Object::New();
-  bool configChangable = options->Has(String::NewSymbol("configChangeable")) ?
-    options->Get(String::NewSymbol("configChangable"))->IsTrue() :
+  v8::Local<v8::Object> options = info.Length()==1? v8::Local<v8::Object>::Cast(info[0]) : Nan::New<v8::Object>();
+  bool configChangable = options->Has(Nan::New("configChangeable").ToLocalChecked()) ?
+    options->Get(Nan::New("configChangable").ToLocalChecked())->IsTrue() :
     true;
-  bool freeCreateDelete = options->Has(String::NewSymbol("freeCreateDelete")) ?
-    options->Get(String::NewSymbol("freeCreateDelete"))->IsTrue() :
+  bool freeCreateDelete = options->Has(Nan::New("freeCreateDelete").ToLocalChecked()) ?
+    options->Get(Nan::New("freeCreateDelete").ToLocalChecked())->IsTrue() :
     true;
-  bool freeDirectoryList = options->Has(String::NewSymbol("freeDirectoryList")) ?
-    options->Get(String::NewSymbol("freeDirectoryList"))->IsTrue() :
+  bool freeDirectoryList = options->Has(Nan::New("freeDirectoryList").ToLocalChecked()) ?
+    options->Get(Nan::New("freeDirectoryList").ToLocalChecked())->IsTrue() :
     true;
-  bool keyChangable = options->Has(String::NewSymbol("keyChangable")) ?
-    options->Get(String::NewSymbol("keyChangable"))->IsTrue() :
+  bool keyChangable = options->Has(Nan::New("keyChangable").ToLocalChecked()) ?
+    options->Get(Nan::New("keyChangable").ToLocalChecked())->IsTrue() :
     true;
   uint8_t flags = (configChangable << 3) | (freeCreateDelete << 2) | (freeDirectoryList << 1) | (keyChangable << 0);
   int res;
 
-  lock_device(data->reader);
-  res = mifare_desfire_connect(data->tag);
+  GuardReader reader_guard(data->reader, true);
+  GuardTag tag_guard(data->tag, res, true);
   if(res < 0) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12303, "Can't connect to Mifare DESFire target."));
+    return errorResult(info, 0x12303, "Can't connect to Mifare DESFire target.");
   }
 
   MifareDESFireKey key_picc = mifare_desfire_des_key_new_with_version(key_data_picc);
   res = mifare_desfire_authenticate(data->tag, 0, key_picc);
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12310, "Can't authenticate on Mifare DESFire target."));
+    return errorResult(info, 0x12310, "Can't authenticate on Mifare DESFire target.");
   }
   mifare_desfire_key_free(key_picc);
 
   res = mifare_desfire_change_key_settings(data->tag, flags);
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12311, "ChangeKeySettings failed"));
+    return errorResult(info, 0x12311, "ChangeKeySettings failed");
   }
   res = mifare_desfire_format_picc(data->tag);
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12312, "Can't format PICC."));
+    return errorResult(info, 0x12312, "Can't format PICC.");
   }
-
-  mifare_desfire_disconnect(data->tag);
-  unlock_device(data->reader);
-
-  return scope.Close(validTrue());
+  validTrue(info);
 }
 
-Handle<Value> CardCreateNdef(const Arguments& args) {
-  HandleScope scope;
-  Local<Object> self = args.This();
+void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   int res =0;
   uint8_t file_no = 0;
   //uint16_t ndef_max_len = 0;
@@ -432,32 +404,29 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
   uint8_t *key_data_picc = ndef_read_key;
   uint8_t *key_data_app = ndef_read_key;
 
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12301, "Card is already free"));
+    return errorResult(info, 0x12301, "Card is already free");
   }
 
-  if(args.Length()!=1 || !Buffer::HasInstance(args[0])) {
-    return scope.Close(errorResult(0x12302, "This function takes a buffer to write to a tag"));
+  if(info.Length()!=1 || !node::Buffer::HasInstance(info[0])) {
+    return errorResult(info, 0x12302, "This function takes a buffer to write to a tag");
   }
 
-  lock_device(data->reader);
-  res = mifare_desfire_connect(data->tag);
+  GuardReader reader_guard(data->reader, true);
+  GuardTag tag_gurad(data->tag, res, true);
   if(res) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
+    return errorResult(info, 0x12303, "Can't conntect to Mifare DESFire target.");
   }
 
-  struct mifare_desfire_version_info info;
-  res = mifare_desfire_get_version(data->tag, &info);
+  struct mifare_desfire_version_info cardinfo;
+  res = mifare_desfire_get_version(data->tag, &cardinfo);
   if(res < 0) {
-    unlock_device(data->reader);
-    mifare_desfire_disconnect(data->tag);
-    return errorResult(0x12304, freefare_strerror(data->tag));
+    return errorResult(info, 0x12304, freefare_strerror(data->tag));
   }
 
   int ndef_mapping;
-  switch(info.software.version_major) {
+  switch(cardinfo.software.version_major) {
   case 0: {
       ndef_mapping = 1;
     } break;
@@ -470,9 +439,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
   // Send Mifare DESFire Select Application with AID equal to 000000h to select the PICC level
   res = mifare_desfire_select_application(data->tag, NULL);
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12313, "Application selection failed"));
+    return errorResult(info, 0x12313, "Application selection failed");
   }
 
   MifareDESFireKey key_picc;
@@ -483,9 +450,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
   // Authentication with PICC master key MAY be needed to issue ChangeKeySettings command
   res = mifare_desfire_authenticate(data->tag, 0, key_picc);
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12310, "Authentication with PICC master key failed"));
+    return errorResult(info, 0x12310, "Authentication with PICC master key failed");
   }
 
   MifareDESFireAID aid;
@@ -503,9 +468,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
       // bit0 equal to Xb, PICC masterkey MAY be frozen or changeable
       res = mifare_desfire_change_key_settings(data->tag, 0x09);
       if(res < 0) {
-        mifare_desfire_disconnect(data->tag);
-        unlock_device(data->reader);
-        return scope.Close(errorResult(0x12311, "ChangeKeySettings failed"));
+        return errorResult(info, 0x12311, "ChangeKeySettings failed");
       }
     }
 
@@ -513,43 +476,33 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     aid = mifare_desfire_aid_new(0xEEEE10);
     res = mifare_desfire_create_application(data->tag, aid, 0x09, 1);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12314, "Application creation failed. Try format before running create."));
+      return errorResult(info, 0x12314, "Application creation failed. Try format before running create.");
     }
 
     // Mifare DESFire SelectApplication (Select previously creates application)
     res = mifare_desfire_select_application(data->tag, aid);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12313, "Application selection failed"));
+      return errorResult(info, 0x12313, "Application selection failed");
     }
     free(aid);
 
     // Authentication with NDEF Tag Application master key (Authentication with key 0)
     res = mifare_desfire_authenticate(data->tag, 0, key_app);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12310, "Authentication with NDEF Tag Application master key failed"));
+      return errorResult(info, 0x12310, "Authentication with NDEF Tag Application master key failed");
     }
 
     // Mifare DESFire ChangeKeySetting with key settings equal to 00001001b
     res = mifare_desfire_change_key_settings(data->tag, 0x09);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12311, "ChangeKeySettings failed"));
+      return errorResult(info, 0x12311, "ChangeKeySettings failed");
     }
 
     // Mifare DESFire CreateStdDataFile with FileNo equal to 03h (CC File DESFire FID), ComSet equal to 00h,
     // AccesRights equal to E000h, File Size bigger equal to 00000Fh
     res = mifare_desfire_create_std_data_file(data->tag, 0x03, MDCM_PLAIN, 0xE000, 0x00000F);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12315, "CreateStdDataFile failed"));
+      return errorResult(info, 0x12315, "CreateStdDataFile failed");
     }
 
     // Mifare DESFire WriteData to write the content of the CC File with CClEN equal to 000Fh,
@@ -570,20 +523,15 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
 
     res = mifare_desfire_write_data(data->tag, 0x03, 0, sizeof(capability_container_file_content), capability_container_file_content);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12316, "Write CC file content failed"));
+      return errorResult(info, 0x12316, "Write CC file content failed");
     }
 
     // Mifare DESFire CreateStdDataFile with FileNo equal to 04h (NDEF FileDESFire FID), CmmSet equal to 00h, AccessRigths
     // equal to EEE0h, FileSize equal to 000EE0h (3808 Bytes)
     res = mifare_desfire_create_std_data_file(data->tag, 0x04, MDCM_PLAIN, 0xEEE0, 0x000EE0);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12317, "CreateStdDataFile failed"));
+      return errorResult(info, 0x12317, "CreateStdDataFile failed");
     }
-
   } else if(ndef_mapping == 2) {
     // Mifare DESFire Create Application with AID equal to 000001h, key settings equal to 0x0F, NumOfKeys equal to 01h,
     // 2 bytes File Identifiers supported, File-ID equal to E110h
@@ -591,35 +539,27 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     uint8_t app[] = { 0xd2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01 };
     res = mifare_desfire_create_application_iso(data->tag, aid, 0x0F, 0x21, 0, 0xE110, app, sizeof(app));
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12314, "Application creation failed. Try format before running."));
+      return errorResult(info, 0x12314, "Application creation failed. Try format before running.");
     }
 
     // Mifare DESFire SelectApplication (Select previously creates application)
     res = mifare_desfire_select_application(data->tag, aid);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12313, "Application selection failed"));
+      return errorResult(info, 0x12313, "Application selection failed");
     }
     free(aid);
 
     // Authentication with NDEF Tag Application master key (Authentication with key 0)
     res = mifare_desfire_authenticate(data->tag, 0, key_app);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12310, "Authentication with NDEF Tag Application master key failed"));
+      return errorResult(info, 0x12310, "Authentication with NDEF Tag Application master key failed");
     }
 
     // Mifare DESFire CreateStdDataFile with FileNo equal to 01h (DESFire FID), ComSet equal to 00h,
     // AccesRights equal to E000h, File Size bigger equal to 00000Fh, ISO File ID equal to E103h
     res = mifare_desfire_create_std_data_file_iso(data->tag, 0x01, MDCM_PLAIN, 0xE000, 0x00000F, 0xE103);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12316, "CreateStdDataFileIso failed"));
+      return errorResult(info, 0x12316, "CreateStdDataFileIso failed");
     }
 
     // Mifare DESFire WriteData to write the content of the CC File with CClEN equal to 000Fh,
@@ -639,7 +579,7 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     };
 
     uint16_t ndef_max_size = 0x0800;
-    uint16_t announcedsize = 1 << (info.software.storage_size >> 1);
+    uint16_t announcedsize = 1 << (cardinfo.software.storage_size >> 1);
     if(announcedsize >= 0x1000) {
       ndef_max_size = 0x1000;
     }
@@ -650,48 +590,39 @@ Handle<Value> CardCreateNdef(const Arguments& args) {
     capability_container_file_content[12] = ndef_max_size & 0xFF;
     res = mifare_desfire_write_data(data->tag, 0x01, 0, sizeof(capability_container_file_content), capability_container_file_content);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12317, "Write CC file content failed"));
+      return errorResult(info, 0x12317, "Write CC file content failed");
     }
 
     // Mifare DESFire CreateStdDataFile with FileNo equal to 02h (DESFire FID), CmmSet equal to 00h, AccessRigths
     // equal to EEE0h, FileSize equal to ndefmaxsize (0x000800, 0x001000 or 0x001E00)
     res = mifare_desfire_create_std_data_file_iso(data->tag, 0x02, MDCM_PLAIN, 0xEEE0, ndef_max_size, 0xE104);
     if(res < 0) {
-      mifare_desfire_disconnect(data->tag);
-      unlock_device(data->reader);
-      return scope.Close(errorResult(0x12318, "CreateStdDataFileIso failed"));
+      return errorResult(info, 0x12318, "CreateStdDataFileIso failed");
     }
   }
   mifare_desfire_key_free(key_picc);
   mifare_desfire_key_free(key_app);
 
-
-
   res = mifare_desfire_write_data(data->tag, file_no, 2, ndef_msg_len, (uint8_t*)ndef_msg);
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12319, "Writing ndef message faild"));
+    return errorResult(info, 0x12319, "Writing ndef message faild");
   }
-  mifare_desfire_disconnect(data->tag);
-  unlock_device(data->reader);
-
-  return scope.Close(validTrue());
+  validTrue(info);
 }
 
 
 
-Local<Object> CardReadNdefTVL(card_data *data, int &res, uint8_t &file_no, uint16_t &ndef_max_len, MifareDESFireKey key_app) {
+int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, card_data *data, uint8_t &file_no, uint16_t &ndef_max_len, MifareDESFireKey key_app) {
   int version;
+  int res;
   uint8_t *cc_data;
   // #### Get Version
   // We've to track DESFire version as NDEF mapping is different
   struct mifare_desfire_version_info info;
   res = mifare_desfire_get_version(data->tag, &info);
   if(res < 0) {
-    return errorResult(0x12304, freefare_strerror(data->tag));
+    errorResult(v8info, 0x12304, freefare_strerror(data->tag));
+    return res;
   }
   version = info.software.version_major;
 
@@ -707,7 +638,8 @@ Local<Object> CardReadNdefTVL(card_data *data, int &res, uint8_t &file_no, uint1
   }
   res = mifare_desfire_select_application(data->tag, aid);
   if(res < 0) {
-    return errorResult(0x12313, "Application selection failed. No NDEF application found.");
+    errorResult(v8info, 0x12313, "Application selection failed. No NDEF application found.");
+    return res;
   }
   free(aid);
 
@@ -715,7 +647,8 @@ Local<Object> CardReadNdefTVL(card_data *data, int &res, uint8_t &file_no, uint1
   // NDEF Tag Application master key (Authentication with key 0)
   res = mifare_desfire_authenticate(data->tag, 0, key_app);
   if(res < 0) {
-    return errorResult(0x12310, "Authentication with NDEF Tag Application master key failed");
+    errorResult(v8info, 0x12310, "Authentication with NDEF Tag Application master key failed");
+    return res;
   }
 
   // ### Read index
@@ -730,16 +663,17 @@ Local<Object> CardReadNdefTVL(card_data *data, int &res, uint8_t &file_no, uint1
   }
 
   if(res < 0) {
-    return errorResult(0x12320, "Reading the ndef capability container file (E103) failed");
+    errorResult(v8info, 0x12320, "Reading the ndef capability container file (E103) failed");
+    return res;
   }
   uint16_t cclen = (((uint16_t)lendata[0]) << 8) + ((uint16_t)lendata[1]);
   if(cclen < 15) {
-    res = -12315;
-    return errorResult(0x12321, "The read ndef capability container file (E103) is to short");
+    errorResult(v8info, 0x12321, "The read ndef capability container file (E103) is to short");
+    return -12315;
   }
   if(!(cc_data = new uint8_t[cclen + 20])) { // cf FIXME in mifare_desfire.c read_data()
-    res = -12342;
-    return errorResult(0x12322, "Allocation of ndef capability container file (E103) failed");
+    errorResult(v8info, 0x12322, "Allocation of ndef capability container file (E103) failed");
+    return -12342;
   }
   if(version == 0) {
       res = mifare_desfire_read_data(data->tag, 0x03, 0, cclen, cc_data);
@@ -747,7 +681,8 @@ Local<Object> CardReadNdefTVL(card_data *data, int &res, uint8_t &file_no, uint1
       res = mifare_desfire_read_data(data->tag, 0x01, 0, cclen, cc_data);
   }
   if(res < 0) {
-    return errorResult(0x12320, "Reading the ndef capability container file data (E103) failed");
+    errorResult(v8info, 0x12320, "Reading the ndef capability container file data (E103) failed");
+    return res;
   }
 
   // Search NDEF File Control TLV
@@ -757,12 +692,12 @@ Local<Object> CardReadNdefTVL(card_data *data, int &res, uint8_t &file_no, uint1
   }
 
   if(off + 7 >= cclen) {
-    res = -12343;
-    return errorResult(0x12323, "We've reached the end of the ndef capability container file (E103) and did not find the ndef TLV");
+    errorResult(v8info, 0x12323, "We've reached the end of the ndef capability container file (E103) and did not find the ndef TLV");
+    return -12343;
   }
   if(cc_data[off + 2] != 0xE1) {
-    res = -12344;
-    return errorResult(0x12324, "Found unknown ndef file reference");
+    errorResult(v8info, 0x12324, "Found unknown ndef file reference");
+    return -12344;
   }
 
   // ### Get file
@@ -775,198 +710,133 @@ Local<Object> CardReadNdefTVL(card_data *data, int &res, uint8_t &file_no, uint1
   }
   // Swap endianess
   ndef_max_len = (((uint16_t)cc_data[off + 4]) << 8) + ((uint16_t)cc_data[off + 5]);
-
   delete [] cc_data;
-  res = 0;
-  return Local<Object>::New(Object::New());
+  return 0;
 }
 
-Handle<Value> CardReadNdef(const Arguments& args) {
-  HandleScope scope;
-  Local<Object> self = args.This();
+void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   int res;
   uint8_t file_no;
-  uint16_t ndef_max_len;
-  uint8_t *ndef_msg;
+  uint16_t ndef_msg_len_max;
   uint16_t ndef_msg_len;
-
+  uint8_t *ndef_msg;
   uint8_t ndef_read_key[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12301, "Card is already free"));
+    return errorResult(info, 0x12301, "Card is already free");
   }
-
-  if(args.Length()!=0) {
-    return scope.Close(errorResult(0x12302, "This function does not take any arguments"));
+  if(info.Length()!=0) {
+    return errorResult(info, 0x12302, "This function does not take any arguments");
   }
-
-  res = mifare_desfire_connect(data->tag);
-  lock_device(data->reader);
+  GuardReader reader_guard(data->reader, true);
+  GuardTag tag_guard(data->tag, res, true);
   if(res) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
+    return errorResult(info, 0x12303, "Can't conntect to Mifare DESFire target.");
   }
-
   MifareDESFireKey key_app;
   key_app = mifare_desfire_des_key_new_with_version(ndef_read_key);
-  Local<Object> errorresult = CardReadNdefTVL(data, res, file_no, ndef_max_len, key_app);
+  res = CardReadNdefTVL(info, data, file_no, ndef_msg_len_max, key_app);
   mifare_desfire_key_free(key_app);
-  if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorresult);
+  if(res < 0) { return; } // Error message set by CardReaderNdevTVL
+  if(!(ndef_msg = new uint8_t[ndef_msg_len_max + 20])) { // cf FIXME in mifare_desfire.c read_data()
+    return errorResult(info, 0x12325, "Allocation of ndef file failed");
   }
-
-  if(!(ndef_msg = new uint8_t[ndef_max_len + 20])) { // cf FIXME in mifare_desfire.c read_data()
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12325, "Allocation of ndef file failed"));
-  }
-
   uint8_t lendata[20]; // cf FIXME in mifare_desfire.c read_data()
   res = mifare_desfire_read_data(data->tag, file_no, 0, 2, lendata);
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12326, "Reading of ndef file failed"));
+    return errorResult(info, 0x12326, "Reading of ndef file failed");
   }
   ndef_msg_len = (((uint16_t)lendata[0]) << 8) + ((uint16_t)lendata[1]);
-  if(ndef_msg_len + 2 > ndef_max_len) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12327, "Declared ndef size larger than max ndef size"));
+  if(ndef_msg_len + 2 > ndef_msg_len_max) {
+    return errorResult(info, 0x12327, "Declared ndef size larger than max ndef size");
   }
   if(ndef_msg_len == 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12332, "Declared ndef size is zero last write was faulty"));
+    return errorResult(info, 0x12332, "Declared ndef size is zero last write was faulty");
   }
   res = mifare_desfire_read_data(data->tag, file_no, 2, ndef_msg_len, ndef_msg);
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12326, "Reading ndef message faild"));
+    return errorResult(info, 0x12326, "Reading ndef message faild");
   }
   if(res != ndef_msg_len){
-    printf("767, data read res %d %d\n", res, ndef_msg_len);
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12329, "Reading full ndef message failed"));
+    return errorResult(info, 0x12329, "Reading full ndef message failed");
   }
-  Buffer *slowBuffer = Buffer::New(ndef_msg_len);
-  memcpy(Buffer::Data(slowBuffer), ndef_msg, ndef_msg_len);
-
-  Local<Object> result = buffer(ndef_msg, ndef_msg_len);
-  result->Set(String::NewSymbol("maxLength"), Integer::New(ndef_max_len));
+  v8::Local<v8::Object> result = buffer(ndef_msg, ndef_msg_len);
+  result->Set(Nan::New("maxLength").ToLocalChecked(), Nan::New(ndef_msg_len_max));
   if(ndef_msg) {
     delete [] ndef_msg;
   }
-  mifare_desfire_disconnect(data->tag);
-  unlock_device(data->reader);
-  return scope.Close(validResult(result));
+  validResult(info, result);
 }
 
-Handle<Value> CardWriteNdef(const Arguments& args) {
-  HandleScope scope;
-  Local<Object> self = args.This();
-  Local<Object> result = Object::New();
+void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   int res;
   uint8_t file_no;
-  uint16_t ndef_max_len;
-  char *ndef_msg;
+  uint8_t  ndef_read_key[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
   uint16_t ndef_msg_len;
-
-  uint8_t ndef_read_key[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+  uint16_t ndef_msg_len_zero = 0;
+  uint16_t ndef_msg_len_max;
+  uint8_t  ndef_msg_len_bigendian[2];
+  uint8_t *ndef_msg;
+  v8::Local<v8::Object> result = Nan::New<v8::Object>();
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12301, "Card is already free"));
+    return errorResult(info, 0x12301, "Card is already free");
   }
-
-  if(args.Length()!=1 || !Buffer::HasInstance(args[0])) {
-    return scope.Close(errorResult(0x12302, "This function takes a buffer to write to a tag"));
+  if(info.Length()!=1 || !node::Buffer::HasInstance(info[0])) {
+    return errorResult(info, 0x12302, "This function takes a buffer to write to a tag");
   }
-
-  ndef_msg_len = Buffer::Length(args[0]);
-  ndef_msg = Buffer::Data(args[0]);
-
-  res = mifare_desfire_connect(data->tag);
-  lock_device(data->reader);
+  ndef_msg_len = node::Buffer::Length(info[0]);
+  ndef_msg = reinterpret_cast<uint8_t *>(node::Buffer::Data(info[0]));
+  GuardReader reader_guard(data->reader, true);
+  GuardTag tag_guard(data->tag, res, true);
   if(res) {
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12303, "Can't conntect to Mifare DESFire target."));
+    return errorResult(info, 0x12303, "Can't conntect to Mifare DESFire target.");
   }
 
   MifareDESFireKey key_app;
   key_app = mifare_desfire_des_key_new_with_version(ndef_read_key);
 
-  Local<Object> errorresult = CardReadNdefTVL(data, res, file_no, ndef_max_len, key_app);
-  if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorresult);
+  res = CardReadNdefTVL(info, data, file_no, ndef_msg_len_max, key_app);
+  if(res < 0) { return; } // errorResult is set by CardReadNdefTVL
+  result->Set(Nan::New("maxLength").ToLocalChecked(), Nan::New(ndef_msg_len_max));
+  if(ndef_msg_len > ndef_msg_len_max) {
+    return errorResult(info, 0x12327, "Supplied NDEF larger than max NDEF size");
   }
 
-  result->Set(String::NewSymbol("maxLength"), Integer::New(ndef_max_len));
-
-  if(ndef_msg_len > ndef_max_len) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12327, "Supplied NDEF larger than max NDEF size"));
-  }
-
-  uint8_t ndef_msg_b[2];
-  ndef_msg_b[0] = (uint8_t)((ndef_msg_len) >> 8);
-  ndef_msg_b[1] = (uint8_t)(ndef_msg_len);
-  uint32_t zero = 0;
+  ndef_msg_len_bigendian[0] = (uint8_t)((ndef_msg_len) >> 8);
+  ndef_msg_len_bigendian[1] = (uint8_t)(ndef_msg_len);
   //Mifare DESFire WriteData to write the content of the NDEF File with NLEN equal to NDEF Message length and NDEF Message
-  res = mifare_desfire_write_data(data->tag, file_no, 0, 2, (uint8_t*)&zero);
+  res = mifare_desfire_write_data(data->tag, file_no, 0, 2, (uint8_t*)&ndef_msg_len_zero);
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12328, "Writing ndef message size pre faild"));
+    return errorResult(info, 0x12328, "Writing ndef message size pre faild");
   }
-
-  res = mifare_desfire_write_data(data->tag, file_no, 2, ndef_msg_len, (uint8_t*)ndef_msg);
-  if(res != ndef_msg_len){
-    printf("790, data write res %d %d\n", res, ndef_msg_len);
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12329, "Writing full ndef message failed"));
+  res = mifare_desfire_write_data(data->tag, file_no, 2, ndef_msg_len, reinterpret_cast<uint8_t*>(ndef_msg));
+  if(res != ndef_msg_len) {
+    return errorResult(info, 0x12329, "Writing full ndef message failed");
   }
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12330, "Writing ndef message failed"));
+    return errorResult(info, 0x12330, "Writing ndef message failed");
   }
-
-  res = mifare_desfire_write_data(data->tag, file_no, 0, 2, ndef_msg_b);
+  res = mifare_desfire_write_data(data->tag, file_no, 0, 2, ndef_msg_len_bigendian);
   if(res < 0) {
-    mifare_desfire_disconnect(data->tag);
-    unlock_device(data->reader);
-    return scope.Close(errorResult(0x12331, "Writing ndef message size post faild"));
+    return errorResult(info, 0x12331, "Writing ndef message size post faild");
   }
-
-
-  res = mifare_desfire_disconnect(data->tag);
-  unlock_device(data->reader);
-  return scope.Close(validTrue());
+  validTrue(info);
 }
 
-Handle<Value> CardFree(const Arguments& args) {
-  HandleScope scope;
-  Local<Object> self = args.This();
-  card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
+void CardFree(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  card_data *data = card_data_from_info(info);
   if(!data) {
-    return scope.Close(errorResult(0x12322, "Card is already free"));
+    return errorResult(info, 0x12322, "Card is already free");
   }
 
-  if(args.Length()!=0) {
-    return scope.Close(errorResult(0x12321, "This function takes no arguments"));
+  if(info.Length()!=0) {
+    return errorResult(info, 0x12321, "This function takes no arguments");
   }
 
   delete data;
   data = NULL;
-  return scope.Close(Undefined());
+  validTrue(info);
 }
 
 

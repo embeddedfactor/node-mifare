@@ -4,9 +4,7 @@
 #ifndef MIFARE_H
 #define MIFARE_H
 
-#include <node.h>
-#include <v8.h>
-#include <node_buffer.h>
+#include <nan.h>
 #include <vector>
 #include <iostream>
 #include <cstring>
@@ -30,7 +28,7 @@
  * @param hContext The SCard Context used to search
  * @return An Array of Strings with reader names
  **/
-Handle<Value> getReader(const Arguments& args);
+void getReader(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 /**
  * Node.js initialization function

@@ -27,6 +27,7 @@ class GuardTag {
       int res = 0;
       if(!m_connected) {
         res = mifare_desfire_connect(m_tag);
+        mifare_sleep();
       }
       m_connected = true;
       return res;

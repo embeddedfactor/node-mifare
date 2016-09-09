@@ -36,3 +36,18 @@ v8::Local<v8::Object> buffer(uint8_t *data, size_t len) {
   );
   return result;
 }
+
+static int mifare_sleep_msec = 0;
+
+void mifare_set_sleep(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
+  if(v8info.Length()!=1 || !v8info[0]->IsNumber()) {
+    return errorResult(v8info, 0x12302, "This function takes a key number as arguments");
+  }
+  mifare_sleep_msec = v8info[0]->ToInt32()->Value();
+}
+
+void mifare_sleep() {
+#if defined(_WIN32)
+  Sleep(msec);
+#endif
+}

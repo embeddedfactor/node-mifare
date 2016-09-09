@@ -10,5 +10,7 @@ void validTrue(const Nan::FunctionCallbackInfo<v8::Value> &info);
 void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const char *msg);
 void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const std::string msg);
 v8::Local<v8::Object> buffer(uint8_t *data, size_t len);
+void mifare_set_sleep(const Nan::FunctionCallbackInfo<v8::Value> &v8info);
+void mifare_sleep();
 
 #endif // UTILS_H

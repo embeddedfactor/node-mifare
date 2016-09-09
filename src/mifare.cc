@@ -9,6 +9,7 @@
 
 
 #include "reader.h"
+#include "utils.h"
 
 /**
  * plugin global secure card context
@@ -140,6 +141,8 @@ void init(v8::Local<v8::Object> exports) {
 
   exports->Set(Nan::New("getReader").ToLocalChecked(),
       Nan::New<v8::FunctionTemplate>(getReader)->GetFunction());
+  exports->Set(Nan::New("setSleep").ToLocalChecked(),
+      Nan::New<v8::FunctionTemplate>(mifare_set_sleep)->GetFunction());
 	// AtExit(&PCSC::close);
 }
 

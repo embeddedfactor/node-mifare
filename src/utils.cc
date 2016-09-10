@@ -1,5 +1,9 @@
 #include "utils.h"
-
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 void validResult(const Nan::FunctionCallbackInfo<v8::Value> &info, v8::Local<v8::Value> data) {
   v8::Local<v8::Object> result = Nan::New<v8::Object>();
   result->Set(Nan::New("err").ToLocalChecked(), Nan::New<v8::Array>());
@@ -48,6 +52,8 @@ void mifare_set_sleep(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
 
 void mifare_sleep() {
 #if defined(_WIN32)
-  Sleep(msec);
+  Sleep(mifare_sleep_msec);
+#else
+  usleep(mifare_sleep_msec * 1000)
 #endif
 }

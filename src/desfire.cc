@@ -150,10 +150,10 @@ void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   res = mifare_desfire_get_key_settings(data->tag, &settings, &max_keys);
   if(!res) {
     v8::Local<v8::Object> key = Nan::New<v8::Object>();
-    key->Set(Nan::New("configChangable").ToLocalChecked(), Nan::New(static_cast<bool>(settings & 0x08)));
-    key->Set(Nan::New("freeCreateDelete").ToLocalChecked(), Nan::New(static_cast<bool>(settings & 0x04)));
-    key->Set(Nan::New("freeDirectoryList").ToLocalChecked(), Nan::New(static_cast<bool>(settings & 0x02)));
-    key->Set(Nan::New("keyChangable").ToLocalChecked(), Nan::New(static_cast<bool>(settings & 0x01)));
+    key->Set(Nan::New("configChangable").ToLocalChecked(), Nan::New((settings & 0x08)!=0));
+    key->Set(Nan::New("freeCreateDelete").ToLocalChecked(), Nan::New((settings & 0x04)!=0));
+    key->Set(Nan::New("freeDirectoryList").ToLocalChecked(), Nan::New((settings & 0x02)!=0));
+    key->Set(Nan::New("keyChangable").ToLocalChecked(), Nan::New((settings & 0x01)!=0));
     key->Set(Nan::New("maxKeys").ToLocalChecked(), Nan::New((max_keys)));
     return info.GetReturnValue().Set(key);
   } else if (AUTHENTICATION_ERROR == mifare_desfire_last_picc_error(data->tag)) {
@@ -397,7 +397,7 @@ void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 }
 
 void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  int res =0;
+  res_t res = 0;
   uint8_t file_no = 0;
   //uint16_t ndef_max_len = 0;
   char *ndef_msg = NULL;

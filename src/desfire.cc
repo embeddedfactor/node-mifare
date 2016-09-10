@@ -58,7 +58,7 @@ class GuardReader {
 };
 
 void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
-  int res;
+  res_t res;
   v8::Local<v8::Object> card = Nan::New<v8::Object>();
   card_data *data = card_data_from_info(v8info);
   struct mifare_desfire_version_info info;
@@ -169,7 +169,7 @@ void CardName(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     return errorResult(info, 0x12301, "Card is already free");
   }
 
-  int res;
+  res_t res;
   if(info.Length()!=0) {
     return errorResult(info, 0x12302, "This function takes no arguments");
   }
@@ -183,7 +183,7 @@ void CardName(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 }
 
 void CardKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  int res;
+  res_t res;
   uint8_t version;
   card_data *data = card_data_from_info(info);
   if(!data) {
@@ -209,7 +209,7 @@ void CardKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 }
 
 void CardFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  int res;
+  res_t res;
   uint32_t size;
   card_data *data = card_data_from_info(info);
   if(!data) {
@@ -370,7 +370,7 @@ void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     options->Get(Nan::New("keyChangable").ToLocalChecked())->IsTrue() :
     true;
   uint8_t flags = (configChangable << 3) | (freeCreateDelete << 2) | (freeDirectoryList << 1) | (keyChangable << 0);
-  int res;
+  res_t res;
 
   GuardReader reader_guard(data->reader, true);
   GuardTag tag_guard(data->tag, res, true);
@@ -617,7 +617,7 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 
 int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, card_data *data, uint8_t &file_no, uint16_t &ndef_max_len, MifareDESFireKey key_app) {
   int version;
-  int res;
+  res_t res;
   uint8_t *cc_data;
   // #### Get Version
   // We've to track DESFire version as NDEF mapping is different
@@ -718,7 +718,7 @@ int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, card_dat
 }
 
 void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  int res;
+  res_t res;
   uint8_t file_no;
   uint16_t ndef_msg_len_max;
   uint16_t ndef_msg_len;
@@ -772,7 +772,7 @@ void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 }
 
 void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  int res;
+  res_t res;
   uint8_t file_no;
   uint8_t  ndef_read_key[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
   uint16_t ndef_msg_len;

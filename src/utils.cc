@@ -54,6 +54,6 @@ void mifare_sleep() {
 #if defined(_WIN32)
   Sleep(mifare_sleep_msec);
 #else
-  usleep(mifare_sleep_msec * 1000)
+  usleep(mifare_sleep_msec * 1000);
 #endif
 }

@@ -15,9 +15,15 @@ card_data *card_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info)
   );
 }
 
+#if ! defined(USE_LIBNFC)
+  typedef LONG res_t;
+#else
+  typedef int res_t;
+#endif
+
 class GuardTag {
   public:
-    GuardTag(FreefareTag tag, int &res, bool connect = false) : m_tag(tag), m_connected(false) {
+    GuardTag(FreefareTag tag, res_t &res, bool connect = false) : m_tag(tag), m_connected(false) {
       if(connect) {
         res = this->connect();
       }
@@ -124,11 +130,7 @@ void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
 }
 
 void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-#if ! defined(USE_LIBNFC)
-  LONG res;
-#else
-  int res;
-#endif
+  res_t res;
   uint8_t settings;
   uint8_t max_keys;
   card_data *data = card_data_from_info(info);
@@ -148,10 +150,10 @@ void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   res = mifare_desfire_get_key_settings(data->tag, &settings, &max_keys);
   if(!res) {
     v8::Local<v8::Object> key = Nan::New<v8::Object>();
-    key->Set(Nan::New("configChangable").ToLocalChecked(), Nan::New(bool(settings & 0x08)));
-    key->Set(Nan::New("freeCreateDelete").ToLocalChecked(), Nan::New(bool(settings & 0x04)));
-    key->Set(Nan::New("freeDirectoryList").ToLocalChecked(), Nan::New(bool(settings & 0x02)));
-    key->Set(Nan::New("keyChangable").ToLocalChecked(), Nan::New(bool(settings & 0x01)));
+    key->Set(Nan::New("configChangable").ToLocalChecked(), Nan::New(static_cast<bool>(settings & 0x08)));
+    key->Set(Nan::New("freeCreateDelete").ToLocalChecked(), Nan::New(static_cast<bool>(settings & 0x04)));
+    key->Set(Nan::New("freeDirectoryList").ToLocalChecked(), Nan::New(static_cast<bool>(settings & 0x02)));
+    key->Set(Nan::New("keyChangable").ToLocalChecked(), Nan::New(static_cast<bool>(settings & 0x01)));
     key->Set(Nan::New("maxKeys").ToLocalChecked(), Nan::New((max_keys)));
     return info.GetReturnValue().Set(key);
   } else if (AUTHENTICATION_ERROR == mifare_desfire_last_picc_error(data->tag)) {

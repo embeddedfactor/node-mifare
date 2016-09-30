@@ -68,15 +68,12 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 #endif
 
   // Clean before use
-  for(std::vector<reader_data *>::iterator iter;iter!=readers_data.end();iter++) {
+  for(std::vector<reader_data *>::iterator iter = readers_data.begin();iter!=readers_data.end();iter++) {
     reader_data *data = *iter;
-#ifndef USE_LIBNFC
-    delete [] data->state.szReader;
-#else
-    if (data->device)
-      nfc_close(data->device);
-#endif
-    delete data;
+    if(data) {
+      delete data;
+    }
+    *iter = NULL;
   }
   readers_data.clear();
 

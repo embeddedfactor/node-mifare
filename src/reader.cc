@@ -285,7 +285,6 @@ void ReaderRelease(const Nan::FunctionCallbackInfo<v8::Value>& info) {
       uv_timer_stop(&data->timer);
     //}
 #ifndef USE_LIBNFC
-    SCardReleaseContext(data->context->context);
 #else
     GuardReader reader_guard(data, true);
     if (data->device)

@@ -55,11 +55,18 @@ struct reader_data {
   }
 
   ~reader_data() {
-#if ! defined(USE_LIBNFC)
+    uv_timer_stop(&this->timer);
+#ifndef USE_LIBNFC
+    this->state.szReader = NULL;
 #else
+    if (data->device) {
+      nfc_close(data->device);
+    }
     this->device = NULL;
 #endif
     uv_mutex_destroy(&this->mDevice);
+    this->callback.Reset();
+    this->self.Reset();
   };
 
   std::string name;

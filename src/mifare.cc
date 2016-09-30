@@ -64,6 +64,7 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
   }
   res = pcsc_list_devices(context, &reader_names);
   if(res != SCARD_S_SUCCESS || reader_names[0] == '\0') {
+#if JSON_ERROR
     v8::Local<v8::Object> global = v8::Context::GetCurrent()->Global();
     v8::Local<v8::Object> JSON = v8::Local<v8::Object>::Cast(global->Get(Nan::New("JSON").ToLocalChecked()));
     v8::Local<v8::Function> stringify = v8::Local<v8::Function>::Cast(JSON->Get(Nan::New("stringify").ToLocalChecked()));
@@ -74,6 +75,9 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     v8::Local<v8::Value> args[] = { error };
     v8::Local<v8::String> result = v8::Local<v8::String>::Cast(stringify->Call(JSON, 1, args));
     Nan::ThrowError(result);
+#else
+    Nan::ThrowError("Unable to list readers");
+#endif
     return;
   }
 #else

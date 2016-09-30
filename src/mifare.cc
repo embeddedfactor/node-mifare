@@ -53,6 +53,15 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
   }
 
 #ifndef USE_LIBNFC
+  if(context) { // For the moment we need to reeterblish context.
+                // Otherwise windows will not allow us to recall getReaders
+    pcsc_exit(context);
+  }
+  pcsc_init(&context);
+  if(!context) {
+    Nan::ThrowError("Cannot establish context");
+    return;
+  }
   res = pcsc_list_devices(context, &reader_names);
   if(res != SCARD_S_SUCCESS || reader_names[0] == '\0') {
     v8::Local<v8::Object> global = v8::Context::GetCurrent()->Global();
@@ -68,6 +77,14 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     return;
   }
 #else
+  if(context) {
+    nfc_exit(context);
+  }
+  nfc_init(&context);
+  if(!context) {
+    Nan::ThrowError("Cannot establish context");
+    return;
+  }
   numDevices = nfc_list_devices(context, reader_names, MAX_READERS);
   if(numDevices == 0) {
     info.GetReturnValue().Set(Nan::New<v8::Object>(readers_global));
@@ -134,15 +151,7 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
  **/
 
 void init(v8::Local<v8::Object> exports) {
-#ifndef USE_LIBNFC
-  pcsc_init(&context);
-#else
-  nfc_init(&context);
-#endif
-  if(!context) {
-    Nan::ThrowError("Cannot establish context");
-    return;
-  }
+  context = NULL;
 
   exports->Set(Nan::New("getReader").ToLocalChecked(),
       Nan::New<v8::FunctionTemplate>(getReader)->GetFunction());

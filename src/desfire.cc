@@ -656,7 +656,7 @@ int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, card_dat
 
   // ### Read index
   // Read Capability Container file E103
-  uint8_t lendata[20]; // cf FIXME in mifare_desfire.c read_data()
+  uint8_t lendata[22]; // cf FIXME in mifare_desfire.c read_data()
   if(version == 0) {
       res = mifare_desfire_read_data(data->tag, 0x03, 0, 2, lendata);
   } else {
@@ -665,11 +665,11 @@ int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, card_dat
       res = mifare_desfire_read_data(data->tag, 0x01, 0, 2, lendata);
   }
 
-  if(res < 0) {
+  if(res < 0 || res > 2) {
     errorResult(v8info, 0x12320, "Reading the ndef capability container file (E103) failed");
-    return res;
+    return -12320;
   }
-  uint16_t cclen = (((uint16_t)lendata[0]) << 8) + ((uint16_t)lendata[1]);
+  uint32_t cclen = (((uint16_t)lendata[0]) << 8) + ((uint16_t)lendata[1]);
   if(cclen < 15) {
     errorResult(v8info, 0x12321, "The read ndef capability container file (E103) is to short");
     return -12315;
@@ -689,7 +689,7 @@ int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, card_dat
   }
 
   // Search NDEF File Control TLV
-  uint8_t off = 7;
+  uint32_t off = 7;
   while(((off + 7) < cclen) && (cc_data[off] != 0x04)) {
       off += cc_data[off + 1] + 2; // Skip TLV entry
   }

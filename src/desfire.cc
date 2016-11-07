@@ -348,7 +348,7 @@ void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 
   uint8_t key_data_picc[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
   if(info.Length()>1 || (info.Length()==1 && !info[0]->IsObject())) {
-    return errorResult(info, 0x12302, "The only argument to listen has to be a callback function");
+    return errorResult(info, 0x12302, "The only argument is an options object with members: {configChangable:bool, freeCreateDelete:bool, freeDirectoryList:bool, keyChangable:bool}");
   }
   // Send Mifare DESFire ChangeKeySetting to change the PICC master key settings into :
   // bit7-bit4 equal to 0000b
@@ -398,11 +398,6 @@ void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 
 void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   res_t res = 0;
-  uint8_t file_no = 0;
-  //uint16_t ndef_max_len = 0;
-  char *ndef_msg = NULL;
-  uint16_t ndef_msg_len = 0;
-
   uint8_t ndef_read_key[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
   uint8_t *key_data_picc = ndef_read_key;
   uint8_t *key_data_app = ndef_read_key;
@@ -412,9 +407,10 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     return errorResult(info, 0x12301, "Card is already free");
   }
 
-  if(info.Length()!=1 || !node::Buffer::HasInstance(info[0])) {
-    return errorResult(info, 0x12302, "This function takes a buffer to write to a tag");
+  if(info.Length()>=1) {
+    return errorResult(info, 0x12302, "This function takes no arguments");
   }
+
 
   GuardReader reader_guard(data->reader, true);
   GuardTag tag_gurad(data->tag, res, true);
@@ -606,10 +602,6 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   mifare_desfire_key_free(key_picc);
   mifare_desfire_key_free(key_app);
 
-  res = mifare_desfire_write_data(data->tag, file_no, 2, ndef_msg_len, (uint8_t*)ndef_msg);
-  if(res < 0) {
-    return errorResult(info, 0x12319, "Writing ndef message faild");
-  }
   validTrue(info);
 }
 

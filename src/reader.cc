@@ -5,14 +5,12 @@
 
 #include "reader.h"
 #include "desfire.h"
+#include "utils.h"
 
 reader_data *reader_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  //card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
   return static_cast<reader_data *>(
     v8::Local<v8::External>::Cast(
-      info.This()->GetHiddenValue(
-        Nan::New("data").ToLocalChecked()
-      )
+      GetPrivate(info.This(), Nan::New("data").ToLocalChecked())
     )->Value()
   );
 }
@@ -75,7 +73,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
             cardData->tag = tags[i];
             v8::Local<v8::Object> card = Nan::New<v8::Object>();
             card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
-            card->SetHiddenValue(Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
+            SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
 
             card->Set(Nan::New("info").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardInfo)->GetFunction());
             card->Set(Nan::New("masterKeyInfo").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardMasterKeyInfo)->GetFunction());
@@ -196,7 +194,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         cardData->tag = t;
         Nan::Local<v8::Object> card = Nan::New<v8::Object>();
         card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
-        card->SetHiddenValue(Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
+        SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData);
 
         card->Set(Nan::New("info").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardInfo)->GetFunction());
         card->Set(Nan::New("masterKeyInfo").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardMasterKeyInfo)->GetFunction());

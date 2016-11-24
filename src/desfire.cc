@@ -5,12 +5,9 @@
 #include "utils.h"
 
 card_data *card_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  //card_data *data = static_cast<card_data *>(External::Unwrap(self->GetHiddenValue(String::NewSymbol("data"))));
   return static_cast<card_data *>(
     v8::Local<v8::External>::Cast(
-      info.This()->GetHiddenValue(
-        Nan::New("data").ToLocalChecked()
-      )
+      GetPrivate(info.This(), Nan::New("data").ToLocalChecked())
     )->Value()
   );
 }

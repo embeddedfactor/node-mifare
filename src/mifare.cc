@@ -134,8 +134,8 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     reader->Set(Nan::New("listen").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(ReaderListen)->GetFunction());
     reader->Set(Nan::New("setLed").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(ReaderSetLed)->GetFunction());
     reader->Set(Nan::New("release").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(ReaderRelease)->GetFunction());
-    reader->SetHiddenValue(Nan::New("data").ToLocalChecked(), data);
     readers_local->Set(Nan::New(reader_iter).ToLocalChecked(), reader);
+    SetPrivate(reader, Nan::New("data").ToLocalChecked(), data);
 #ifndef USE_LIBNFC
     reader_iter += strlen(reader_iter)+1;
     reader_count++;

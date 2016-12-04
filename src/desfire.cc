@@ -4,8 +4,8 @@
 #include "desfire.h"
 #include "utils.h"
 
-card_data *card_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  return static_cast<card_data *>(
+CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  return static_cast<CardData *>(
     v8::Local<v8::External>::Cast(
       GetPrivate(info.This(), Nan::New("data").ToLocalChecked())
     )->Value()
@@ -47,21 +47,21 @@ class GuardTag {
 
 class GuardReader {
   public:
-    GuardReader(reader_data *reader, bool lock = false)
+    GuardReader(ReaderData *reader, bool lock = false)
       : m_reader(reader), m_locked(false)
       { if(lock) this->lock(); }
     ~GuardReader() { unlock(); }
     void lock()   { if(!m_locked) uv_mutex_lock(  &m_reader->mDevice); m_locked = true; }
     void unlock() { if( m_locked) uv_mutex_unlock(&m_reader->mDevice); m_locked = false; }
   private:
-    reader_data *m_reader;
+    ReaderData *m_reader;
     bool m_locked;
 };
 
 void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
   res_t res;
   v8::Local<v8::Object> card = Nan::New<v8::Object>();
-  card_data *data = card_data_from_info(v8info);
+  CardData *data = CardData_from_info(v8info);
   struct mifare_desfire_version_info info;
   if(!data) {
     return errorResult(v8info, 0x12301, "Card is already free");
@@ -134,7 +134,7 @@ void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   res_t res;
   uint8_t settings;
   uint8_t max_keys;
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return  errorResult(info, 0x12305, "Card is already free");
   }
@@ -165,7 +165,7 @@ void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 }
 
 void CardName(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return errorResult(info, 0x12301, "Card is already free");
   }
@@ -186,7 +186,7 @@ void CardName(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 void CardKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   res_t res;
   uint8_t version;
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return errorResult(info, 0x12301, "Card is already free");
   }
@@ -212,7 +212,7 @@ void CardKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 void CardFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   res_t res;
   uint32_t size;
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return errorResult(info, 0x12301, "Card is already free");
   }
@@ -235,7 +235,7 @@ void CardFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 }
 
 void CardSetAid(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return errorResult(info, 0x12301, "Card is already free");
   }
@@ -259,7 +259,7 @@ void CardSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     {mifare_desfire_aes_key_new, NULL}
   };
 
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return errorResult(info, 0x12301, "Card is already free");
   }
@@ -342,7 +342,7 @@ void CardSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 }
 
 void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return errorResult(info, 0x12301, "Card is already free");
   }
@@ -403,7 +403,7 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   uint8_t *key_data_picc = ndef_read_key;
   uint8_t *key_data_app = ndef_read_key;
 
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return errorResult(info, 0x12301, "Card is already free");
   }
@@ -608,7 +608,7 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 
 
 
-int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, card_data *data, uint8_t &file_no, uint16_t &ndef_max_len, MifareDESFireKey key_app) {
+int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, CardData *data, uint8_t &file_no, uint16_t &ndef_max_len, MifareDESFireKey key_app) {
   int version;
   res_t res;
   uint8_t *cc_data;
@@ -717,7 +717,7 @@ void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   uint16_t ndef_msg_len;
   uint8_t *ndef_msg;
   uint8_t ndef_read_key[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return errorResult(info, 0x12301, "Card is already free");
   }
@@ -774,7 +774,7 @@ void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   uint8_t  ndef_msg_len_bigendian[2];
   uint8_t *ndef_msg;
   v8::Local<v8::Object> result = Nan::New<v8::Object>();
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return errorResult(info, 0x12301, "Card is already free");
   }
@@ -821,7 +821,7 @@ void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 }
 
 void CardFree(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  card_data *data = card_data_from_info(info);
+  CardData *data = CardData_from_info(info);
   if(!data) {
     return errorResult(info, 0x12322, "Card is already free");
   }

@@ -7,8 +7,8 @@
 #include "desfire.h"
 #include "utils.h"
 
-reader_data *reader_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  return static_cast<reader_data *>(
+ReaderData *ReaderData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  return static_cast<ReaderData *>(
     v8::Local<v8::External>::Cast(
       GetPrivate(info.This(), Nan::New("data").ToLocalChecked())
     )->Value()
@@ -23,7 +23,7 @@ void reader_timer_callback(uv_timer_t *handle) {
 #else
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 #endif
-  reader_data *data = static_cast<reader_data *>(handle->data);
+  ReaderData *data = static_cast<ReaderData *>(handle->data);
   v8::Local<v8::String> status;
   v8::Local<v8::Object> reader = Nan::New<v8::Object>(data->self);
   GuardReader reader_guard(data, true);
@@ -91,14 +91,14 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     t = NULL;
     int tag_count = 0;
     bool tags_used = false;
-    smart_tags *st = new smart_tags(tags);
+    SmartTags *st = new SmartTags(tags);
     for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
       data->last_uids.push_back(freefare_get_tag_uid(t));
       // TODO: do something with the tag
       if(freefare_get_tag_type(t) == DESFIRE) {
         tags_used = true;
 
-        card_data *cardData = new card_data(data, st);
+        CardData *cardData = new CardData(data, st);
         cardData->tag = t;
         Nan::Local<v8::Object> card = Nan::New<v8::Object>();
         card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
@@ -187,7 +187,7 @@ void reader_timer_callback(uv_timer_t *handle) {
 #else
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 #endif
-  reader_data *data = static_cast<reader_data *>(handle->data);
+  ReaderData *data = static_cast<ReaderData *>(handle->data);
   LONG res;
   DWORD event;
   v8::Local<v8::String> status;
@@ -233,7 +233,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         for(int i = 0; (!res) && tags && tags[i]; i++) {
           if(tags[i] && freefare_get_tag_type(tags[i]) == MIFARE_DESFIRE) {
 
-            card_data *cardData = new card_data(data, tags);
+            CardData *cardData = new CardData(data, tags);
             cardData->tag = tags[i];
             v8::Local<v8::Object> card = Nan::New<v8::Object>();
             card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
@@ -280,7 +280,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 #endif // USE_LIBNFC
 
 void ReaderRelease(const Nan::FunctionCallbackInfo<v8::Value>& info) {
-  reader_data *data = reader_data_from_info(info);
+  ReaderData *data = ReaderData_from_info(info);
   if(info.Length()!=0) {
     Nan::ThrowError("release does not take any arguments");
   } else {
@@ -300,7 +300,7 @@ void ReaderRelease(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 }
 
 void ReaderListen(const Nan::FunctionCallbackInfo<v8::Value>& info) {
-  reader_data *data = reader_data_from_info(info);
+  ReaderData *data = ReaderData_from_info(info);
   if(info.Length()!=1 || !info[0]->IsFunction()) {
     Nan::ThrowError("The only argument to listen has to be a callback function");
   } else{

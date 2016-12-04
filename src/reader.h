@@ -24,13 +24,13 @@
 #endif // USE_LIBNFC
 #include <cstdlib>
 
-struct reader_data {
+struct ReaderData {
   /**
    * Create a new reader status instance
    * @param name The name of the reader
    * @return The SCARD_READERSTATE object representating this object
    */
-  reader_data(const char* name,
+  ReaderData(const char* name,
 #if defined(USE_LIBNFC)
       nfc_context *context,
       nfc_device *device
@@ -54,7 +54,7 @@ struct reader_data {
     uv_mutex_init(&this->mDevice);
   }
 
-  ~reader_data() {
+  ~ReaderData() {
     uv_timer_stop(&timer);
 #ifdef USE_LIBNFC
     if (device) {
@@ -85,7 +85,7 @@ struct reader_data {
   Nan::Persistent<v8::Object> self;
 };
 
-reader_data *reader_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
+ReaderData *ReaderData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
 #if NODE_VERSION_AT_LEAST(0, 12, 0)
 void reader_timer_callback(uv_timer_t *handle);
 #else

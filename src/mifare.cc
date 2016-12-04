@@ -24,7 +24,7 @@ void deinitialize_nfc_context(int p) {
 #else
 static pcsc_context *context;
 #endif
-static std::vector<reader_data *> readers_data;
+static std::vector<ReaderData *> readers_data;
 static Nan::Persistent<v8::Object> readers_global(Nan::New<v8::Object>());
 
 
@@ -84,8 +84,8 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 #endif
 
   // Clean before use
-  for(std::vector<reader_data *>::iterator iter = readers_data.begin();iter!=readers_data.end();iter++) {
-    reader_data *data = *iter;
+  for(std::vector<ReaderData *>::iterator iter = readers_data.begin();iter!=readers_data.end();iter++) {
+    ReaderData *data = *iter;
     if(data) {
       delete data;
     }
@@ -108,11 +108,11 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     }
     std::cout << "Found device: " << nfc_device_get_name(dev) << std::endl;
     nfc_close(dev);
-    readers_data.push_back(new reader_data(reader_iter, context, NULL));
+    readers_data.push_back(new ReaderData(reader_iter, context, NULL));
 #else
   reader_iter = reader_names;
   while(*reader_iter != '\0') {
-    readers_data.push_back(new reader_data(reader_iter, context));
+    readers_data.push_back(new ReaderData(reader_iter, context));
 #endif
     // Node Object:
     v8::Local<v8::External> data = Nan::New<v8::External>(readers_data.back());

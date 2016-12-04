@@ -24,13 +24,13 @@
 #include <cstdlib>
 
 #if defined(USE_LIBNFC)
-struct smart_tags {
-  smart_tags(FreefareTag *tags) {
+struct SmartTags {
+  SmartTags(FreefareTag *tags) {
     this->tags = tags;
     this->cards_using_this_instance = 0;
     uv_mutex_init(&this->m);
   };
-  ~smart_tags() {
+  ~SmartTags() {
     freefare_free_tags(this->tags);
     uv_mutex_destroy(&this->m);
   };
@@ -59,10 +59,10 @@ struct smart_tags {
 };
 #endif
 
-struct card_data {
-  card_data(reader_data *reader,
+struct CardData {
+  CardData(ReaderData *reader,
 #if defined(USE_LIBNFC)
-    smart_tags *t
+    SmartTags *t
 #else
     FreefareTag *t
 #endif
@@ -76,7 +76,7 @@ struct card_data {
 #endif
   }
 
-  ~card_data() {
+  ~CardData() {
     if(key) {
       mifare_desfire_key_free(key);
       key = NULL;
@@ -94,10 +94,10 @@ struct card_data {
     }
   }
 
-  reader_data *reader;
+  ReaderData *reader;
   FreefareTag tag;
 #if defined(USE_LIBNFC)
-  smart_tags *tags;
+  SmartTags *tags;
 #else
   FreefareTag *tags;
 #endif
@@ -106,7 +106,7 @@ struct card_data {
 };
 
 
-card_data *card_data_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
+CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
@@ -130,7 +130,7 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
  * Helper function to locate and read TVL of a desfire ndef sector
  * @return Might return a result object. This is only used when res is lesser 0 otherwise the object is empty.
  */
-int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &info, card_data *data, uint8_t &file_no, uint16_t &ndefmaxlen, MifareDESFireKey key_app);
+int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &info, CardData *data, uint8_t &file_no, uint16_t &ndefmaxlen, MifareDESFireKey key_app);
 
 void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
 

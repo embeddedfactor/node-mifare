@@ -31,54 +31,54 @@ struct reader_data {
    * @return The SCARD_READERSTATE object representating this object
    */
   reader_data(const char* name,
-#if ! defined(USE_LIBNFC)
-      pcsc_context *hContext
-#else
+#if defined(USE_LIBNFC)
       nfc_context *context,
       nfc_device *device
+#else
+      pcsc_context *hContext
 #endif
   )
   {
     this->name = std::string(name);
     this->timer.data = this;
-#if ! defined(USE_LIBNFC)
+#if defined(USE_LIBNFC)
+    this->context = context;
+    this->last_err = NFC_ENOTSUCHDEV;
+    this->device = device;
+#else
     this->context = hContext;
     this->state.szReader = this->name.c_str();
     this->state.dwCurrentState = SCARD_STATE_UNAWARE;
     this->state.pvUserData = this;
-#else
-    this->context = context;
-    this->last_err = NFC_ENOTSUCHDEV;
-    this->device = device;
 #endif
     uv_mutex_init(&this->mDevice);
   }
 
   ~reader_data() {
-    uv_timer_stop(&this->timer);
-#ifndef USE_LIBNFC
-    this->state.szReader = NULL;
-#else
-    if (data->device) {
-      nfc_close(data->device);
+    uv_timer_stop(&timer);
+#ifdef USE_LIBNFC
+    if (device) {
+      nfc_close(device);
     }
-    this->device = NULL;
+    device = NULL;
+#else
+    state.szReader = NULL;
 #endif
-    uv_mutex_destroy(&this->mDevice);
-    this->callback.Reset();
-    this->self.Reset();
+    uv_mutex_destroy(&mDevice);
+    callback.Reset();
+    self.Reset();
   };
 
   std::string name;
   uv_timer_t timer;
-#if ! defined(USE_LIBNFC)
-  SCARD_READERSTATE state;
-  pcsc_context *context;
-#else
+#if defined(USE_LIBNFC)
   nfc_context *context;
   int last_err;
   std::vector< char* > last_uids;
   nfc_device *device;
+#else
+  SCARD_READERSTATE state;
+  pcsc_context *context;
 #endif
   uv_mutex_t mDevice;
   Nan::Persistent<v8::Function> callback;
@@ -93,6 +93,5 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status);
 #endif
 void ReaderRelease(const Nan::FunctionCallbackInfo<v8::Value>& info);
 void ReaderListen(const Nan::FunctionCallbackInfo<v8::Value>& info);
-void ReaderSetLed(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
 #endif // READER_H

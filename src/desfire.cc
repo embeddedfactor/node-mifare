@@ -30,12 +30,16 @@ class GuardTag {
       int res = 0;
       if(!m_connected) {
         res = mifare_desfire_connect(m_tag);
+        if(res) {
+          res = freefare_internal_error(m_tag);
+        }
         mifare_sleep();
       }
       m_connected = true;
       return res;
     }
     void disconnect() { if( m_connected) mifare_desfire_disconnect(m_tag); m_connected = false; }
+    unsigned int error() { return freefare_internal_error(m_tag); }
   private:
     FreefareTag m_tag;
     bool m_connected;
@@ -70,12 +74,12 @@ void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
     GuardReader reader_guard(data->reader, true);
     GuardTag tag_guard(data->tag, res, true);
     if(res) {
-      return errorResult(v8info, 0x12303, "Can't conntect to Mifare DESFire target.");
+      return errorResult(v8info, 0x12303, "Can't conntect to Mifare DESFire target.", tag_guard.error());
     }
 
     res = mifare_desfire_get_version(data->tag, &info);
     if(res) {
-      return errorResult(v8info, 0x12304, freefare_strerror(data->tag));
+      return errorResult(v8info, 0x12304, freefare_strerror(data->tag), tag_guard.error());
     }
   }
 

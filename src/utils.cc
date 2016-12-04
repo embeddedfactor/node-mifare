@@ -4,6 +4,17 @@
 #else
 #include <unistd.h>
 #endif
+
+void retry(int retries, bool (*try_f)()) {
+  int count = retries;
+  while(count>0) {
+    if(!try_f()) {
+      break;
+    }
+    --count;
+  }
+}
+
 void validResult(const Nan::FunctionCallbackInfo<v8::Value> &info, v8::Local<v8::Value> data) {
   v8::Local<v8::Object> result = Nan::New<v8::Object>();
   result->Set(Nan::New("err").ToLocalChecked(), Nan::New<v8::Array>());
@@ -15,17 +26,18 @@ void validTrue(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   validResult(info, Nan::New<v8::Boolean>(true));
 }
 
-void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const std::string msg) {
-  return errorResult(info, no, msg.c_str());
+void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const std::string msg, unsigned int res) {
+  return errorResult(info, no, msg.c_str(), res);
 }
 
-void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const char *msg) {
+void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const char *msg, unsigned int res) {
   v8::Local<v8::Object> result = Nan::New<v8::Object>();
   v8::Local<v8::Array> errors = Nan::New<v8::Array>();
   v8::Local<v8::Object> error = Nan::New<v8::Object>();
 
   error->Set(Nan::New("code").ToLocalChecked(), Nan::New(no));
   error->Set(Nan::New("msg").ToLocalChecked(), Nan::New(msg).ToLocalChecked());
+  error->Set(Nan::New("res").ToLocalChecked(), Nan::New(res));
   errors->Set(0, error);
   result->Set(Nan::New("err").ToLocalChecked(), errors);
   result->Set(Nan::New("data").ToLocalChecked(), Nan::Undefined());
@@ -58,7 +70,7 @@ void mifare_sleep() {
 #endif
 }
 
-#if (NODE_MODULE_VERSION > 48)
+#if NODE_VERSION_AT_LEAST(6, 0, 0)
   v8::Local<v8::Value> GetPrivate(v8::Local<v8::Object> object,
                                   v8::Local<v8::String> key) {
     v8::Isolate* isolate = v8::Isolate::GetCurrent();

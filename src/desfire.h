@@ -23,8 +23,7 @@
 #include "reader.h"
 #include <cstdlib>
 
-#if ! defined(USE_LIBNFC)
-#else
+#if defined(USE_LIBNFC)
 struct smart_tags {
   smart_tags(FreefareTag *tags) {
     this->tags = tags;
@@ -41,6 +40,19 @@ struct smart_tags {
   void unlock() {
     uv_mutex_unlock(&this->m);
   };
+  unsigned int aquire() {
+    return ++cards_using_this_instance;
+  }
+  unsigned int release() {
+    lock();
+    unsigned int tags_ref_count = --cards_using_this_instance;
+    unlock();
+    if(tags_ref_count == 0) {
+      delete tags;
+      tags = NULL;
+    }
+    return tags_ref_count;
+  }
   unsigned int cards_using_this_instance;
   FreefareTag *tags;
   uv_mutex_t m;
@@ -49,21 +61,21 @@ struct smart_tags {
 
 struct card_data {
   card_data(reader_data *reader,
-#if ! defined(USE_LIBNFC)
-    FreefareTag *t
-#else
+#if defined(USE_LIBNFC)
     smart_tags *t
+#else
+    FreefareTag *t
 #endif
     ) : reader(reader) {
     uint8_t null[8] = {0,0,0,0,0,0,0,0};
     key = mifare_desfire_des_key_new(null);
     aid = mifare_desfire_aid_new(0x000001);
-    this->tags = t;
-#if ! defined(USE_LIBNFC)
-#else
-    t->cards_using_this_instance++;
+    tags = t;
+#if defined(USE_LIBNFC)
+    t->aquire();
 #endif
   }
+
   ~card_data() {
     if(key) {
       mifare_desfire_key_free(key);
@@ -73,26 +85,21 @@ struct card_data {
       free(aid);
       aid = NULL;
     }
-    if(this->tags) {
-#if ! defined(USE_LIBNFC)
-      freefare_free_tags(this->tags);
+    if(tags) {
+#if defined(USE_LIBNFC)
+      tags->release();
 #else
-      this->tags->lock();
-      int tags_ref_count = --this->tags->cards_using_this_instance;
-      this->tags->unlock();
-      if(tags_ref_count == 0) {
-        delete this->tags;
-      }
+      freefare_free_tags(tags);
 #endif
     }
   }
 
   reader_data *reader;
   FreefareTag tag;
-#if ! defined(USE_LIBNFC)
-  FreefareTag *tags;
-#else
+#if defined(USE_LIBNFC)
   smart_tags *tags;
+#else
+  FreefareTag *tags;
 #endif
   MifareDESFireKey key;
   MifareDESFireAID aid;

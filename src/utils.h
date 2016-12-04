@@ -5,10 +5,12 @@
 #include <iostream>
 #include <cstring>
 
+void retry(int retries, bool (*try_f)());
+
 void validResult(const Nan::FunctionCallbackInfo<v8::Value> &info, v8::Local<v8::Value> data);
 void validTrue(const Nan::FunctionCallbackInfo<v8::Value> &info);
-void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const char *msg);
-void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const std::string msg);
+void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const char *msg, unsigned int res=0);
+void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const std::string msg, unsigned int res=0);
 v8::Local<v8::Object> buffer(uint8_t *data, size_t len);
 void mifare_set_sleep(const Nan::FunctionCallbackInfo<v8::Value> &v8info);
 void mifare_sleep();

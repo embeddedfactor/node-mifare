@@ -4,6 +4,49 @@
 #include <nan.h>
 #include <iostream>
 #include <cstring>
+#include <exception>
+
+#ifndef USE_LIBNFC
+#if defined(__APPLE__) || defined(__linux__)
+#include <PCSC/winscard.h>
+#include <PCSC/wintypes.h>
+#else
+#include <winscard.h>
+#endif
+#include <freefare_pcsc.h>
+#else // USE_LIBNFC
+#include <nfc/nfc.h>
+#include <freefare_nfc.h>
+#endif // USE_LIBNFC
+
+#if defined(USE_LIBNFC)
+  typedef int res_t;
+#else
+  typedef LONG res_t;
+#endif
+
+class MifareError : public std::exception {
+  public:
+    MifareError(const char *msg = NULL, const int id = 0) : m_id(id), m_msg(msg) {}
+
+    virtual ~MifareError() {}
+
+    virtual const char *what() const {
+      return m_msg;
+    }
+
+    virtual int id() const {
+      return m_id;
+    }
+
+  private:
+    const int m_id;
+    const char *m_msg;
+};
+
+class ReaderError : public MifareError {};
+class TagError : public MifareError {};
+class DESFireTagError : public TagError {};
 
 void retry(int retries, bool (*try_f)());
 

@@ -16,14 +16,18 @@
  **/
 #if defined(USE_LIBNFC)
 #include <signal.h>
-static nfc_context *context = NULL;
-void deinitialize_nfc_context(int p) {
-  if (context)
-    nfc_exit(context);
-}
+
+#define mifare_init nfc_init
+#define mifare_exit nfc_exit
+typedef nfc_context mifare_context;
+
 #else
-static pcsc_context *context;
+#define mifare_init pcsc_init
+#define mifare_exit pcsc_exit
+typedef pcsc_context mifare_context;
 #endif
+
+static mifare_context *context = NULL;
 static std::vector<ReaderData *> readers_data;
 static Nan::Persistent<v8::Object> readers_global(Nan::New<v8::Object>());
 
@@ -35,8 +39,8 @@ static Nan::Persistent<v8::Object> readers_global(Nan::New<v8::Object>());
  **/
 void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 #if defined(USE_LIBNFC)
-  size_t numDevices;
   const size_t MAX_READERS = 16;
+  size_t numDevices;
   nfc_connstring reader_names[MAX_READERS];
 #else
   LONG res;
@@ -52,30 +56,21 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     return;
   }
 
-#if defined(USE_LIBNFC)
   if(context) {
-    nfc_exit(context);
+    mifare_exit(context);
   }
-  nfc_init(&context);
+  mifare_init(&context);
   if(!context) {
     Nan::ThrowError("Cannot establish context");
     return;
   }
+#if defined(USE_LIBNFC)
   numDevices = nfc_list_devices(context, reader_names, MAX_READERS);
   if(numDevices == 0) {
     info.GetReturnValue().Set(Nan::New<v8::Object>(readers_global));
     return;
   }
-  if(context) { // For the moment we need to reeterblish context.
-                // Otherwise windows will not allow us to recall getReaders
-    pcsc_exit(context);
-  }
 #else
-  pcsc_init(&context);
-  if(!context) {
-    Nan::ThrowError("Cannot establish context");
-    return;
-  }
   res = pcsc_list_devices(context, &reader_names);
   if(res != SCARD_S_SUCCESS || reader_names[0] == '\0') {
     Nan::ThrowError("Unable to list readers");
@@ -108,12 +103,11 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     }
     std::cout << "Found device: " << nfc_device_get_name(dev) << std::endl;
     nfc_close(dev);
-    readers_data.push_back(new ReaderData(reader_iter, context, NULL));
 #else
   reader_iter = reader_names;
   while(*reader_iter != '\0') {
-    readers_data.push_back(new ReaderData(reader_iter, context));
 #endif
+    readers_data.push_back(new ReaderData(reader_iter, context));
     // Node Object:
     v8::Local<v8::External> data = Nan::New<v8::External>(readers_data.back());
     v8::Local<v8::Object> reader = Nan::New<v8::Object>();
@@ -129,8 +123,6 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     reader_count++;
 #endif
   }
-  //delete [] reader_names;
-
   info.GetReturnValue().Set(readers_local);
   return;
 }

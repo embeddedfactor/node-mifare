@@ -91,14 +91,13 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     t = NULL;
     int tag_count = 0;
     bool tags_used = false;
-    SmartTags *st = new SmartTags(tags);
     for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
       data->last_uids.push_back(freefare_get_tag_uid(t));
       // TODO: do something with the tag
       if(freefare_get_tag_type(t) == DESFIRE) {
         tags_used = true;
 
-        CardData *cardData = new CardData(data, st);
+        CardData *cardData = new CardData(data, tags);
         cardData->tag = t;
         Nan::Local<v8::Object> card = Nan::New<v8::Object>();
         card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());

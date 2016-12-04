@@ -33,7 +33,7 @@ struct ReaderData {
   ReaderData(const char* name,
 #if defined(USE_LIBNFC)
       nfc_context *context,
-      nfc_device *device
+      nfc_device *device = NULL
 #else
       pcsc_context *hContext
 #endif

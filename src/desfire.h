@@ -7,6 +7,7 @@
 #include <vector>
 #include <iostream>
 #include <cstring>
+#include <memory>
 
 #if ! defined(USE_LIBNFC)
 #if defined(__APPLE__) || defined(__linux__)
@@ -23,86 +24,31 @@
 #include "reader.h"
 #include <cstdlib>
 
-#if defined(USE_LIBNFC)
-struct SmartTags {
-  SmartTags(FreefareTag *tags) {
-    this->tags = tags;
-    this->cards_using_this_instance = 0;
-    uv_mutex_init(&this->m);
-  };
-  ~SmartTags() {
-    freefare_free_tags(this->tags);
-    uv_mutex_destroy(&this->m);
-  };
-  void lock() {
-    uv_mutex_lock(&this->m);
-  };
-  void unlock() {
-    uv_mutex_unlock(&this->m);
-  };
-  unsigned int aquire() {
-    return ++cards_using_this_instance;
-  }
-  unsigned int release() {
-    lock();
-    unsigned int tags_ref_count = --cards_using_this_instance;
-    unlock();
-    if(tags_ref_count == 0) {
-      delete tags;
-      tags = NULL;
+class CardData {
+  public:
+    CardData(ReaderData *reader, FreefareTag *tags) : reader(reader), tags(tags) {
+      uint8_t null[8] = {0,0,0,0,0,0,0,0};
+      key = mifare_desfire_des_key_new(null);
+      aid = mifare_desfire_aid_new(0x000001);
     }
-    return tags_ref_count;
-  }
-  unsigned int cards_using_this_instance;
-  FreefareTag *tags;
-  uv_mutex_t m;
-};
-#endif
 
-struct CardData {
-  CardData(ReaderData *reader,
-#if defined(USE_LIBNFC)
-    SmartTags *t
-#else
-    FreefareTag *t
-#endif
-    ) : reader(reader) {
-    uint8_t null[8] = {0,0,0,0,0,0,0,0};
-    key = mifare_desfire_des_key_new(null);
-    aid = mifare_desfire_aid_new(0x000001);
-    tags = t;
-#if defined(USE_LIBNFC)
-    t->aquire();
-#endif
-  }
+    ~CardData() {
+      if(key) {
+        mifare_desfire_key_free(key);
+        key = NULL;
+      }
+      if(aid) {
+        free(aid);
+        aid = NULL;
+      }
+      freefare_free_tags(tags.get());
+    }
 
-  ~CardData() {
-    if(key) {
-      mifare_desfire_key_free(key);
-      key = NULL;
-    }
-    if(aid) {
-      free(aid);
-      aid = NULL;
-    }
-    if(tags) {
-#if defined(USE_LIBNFC)
-      tags->release();
-#else
-      freefare_free_tags(tags);
-#endif
-    }
-  }
-
-  ReaderData *reader;
-  FreefareTag tag;
-#if defined(USE_LIBNFC)
-  SmartTags *tags;
-#else
-  FreefareTag *tags;
-#endif
-  MifareDESFireKey key;
-  MifareDESFireAID aid;
+    ReaderData *reader;
+    FreefareTag tag;
+    std::shared_ptr<FreefareTag> tags;
+    MifareDESFireKey key;
+    MifareDESFireAID aid;
 };
 
 

@@ -12,12 +12,6 @@ CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   );
 }
 
-#if ! defined(USE_LIBNFC)
-  typedef LONG res_t;
-#else
-  typedef int res_t;
-#endif
-
 class GuardTag {
   public:
     GuardTag(FreefareTag tag, res_t &res, bool connect = false) : m_tag(tag), m_connected(false) {

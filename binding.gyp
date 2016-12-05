@@ -16,6 +16,14 @@
               ],
             }],
           ],
+        }],
+        ['OS=="mac"', {
+          'xcode_settings': {
+            'GCC_ENABLE_CPP_EXCEPTIONS': 'YES',
+            'OTHER_CPLUSPLUSFLAGS' : ['-std=c++11','-stdlib=libc++'],
+            'OTHER_LDFLAGS': ['-stdlib=libc++'],
+            'MACOSX_DEPLOYMENT_TARGET': '10.7',
+          }
         }]
       ],
       "include_dirs": [
@@ -28,15 +36,32 @@
         "src/desfire.cc",
         "src/utils.cc"
       ],
+      "msvs_settings": {
+        "VCCLCompilerTool": {
+          "ExceptionHandling": 1
+        }
+      },
       "cflags": [
+        "-std=c++11",
+        '-stdlib=libc++',
         "-Wall",
         "-Wextra",
         "-Wno-unused-parameter",
         "-fPIC",
         "-fno-strict-aliasing",
-        "-fno-exceptions",
         "-pedantic"
       ],
+      "cflags_cc": [
+        "-std=c++11",
+        "-Wall",
+        "-Wextra",
+        "-Wno-unused-parameter",
+        "-fPIC",
+        "-fno-strict-aliasing",
+        "-pedantic"
+      ],
+      "cflags!": [ '-fno-exceptions' ],
+      "cflags_cc!": [ '-fno-exceptions' ],
     }
   ]
 }

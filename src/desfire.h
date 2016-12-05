@@ -22,6 +22,7 @@
 #endif // ! USE_LIBNFC
 
 #include "reader.h"
+#include "utils.h"
 #include <cstdlib>
 
 class CardData {
@@ -51,6 +52,77 @@ class CardData {
     MifareDESFireAID aid;
 };
 
+inline CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  CardData *data = static_cast<CardData *>(
+    v8::Local<v8::External>::Cast(
+      GetPrivate(info.This(), Nan::New("data").ToLocalChecked())
+    )->Value()
+  );
+
+  if(!data) {
+    throw errorResult(info, 0x12301, "Card is already free");
+  }
+
+  return data;
+}
+
+class GuardTag {
+  public:
+    GuardTag(const Nan::FunctionCallbackInfo<v8::Value> &info, bool active = false) : m_info(info), m_data(CardData_from_info(info)), m_reader(m_data->reader), m_tag(m_data->tag), m_active(false) {
+      if(active) {
+        guard();
+      }
+    }
+
+    virtual ~GuardTag() {
+      unguard();
+    }
+
+    operator CardData*() {
+      return m_data;
+    }
+
+    operator ReaderData*() {
+      return m_reader;
+    }
+
+    operator FreefareTag() {
+      return m_tag;
+    }
+
+    unsigned int error() {
+      return freefare_internal_error(m_tag);
+    }
+
+    void guard() {
+      if(!m_active) {
+        int res = 0;
+        uv_mutex_lock(  &m_reader->mDevice);
+        res = mifare_desfire_connect(m_tag);
+        if(res) {
+          uv_mutex_unlock(&m_reader->mDevice);
+          throw errorResult(m_info, 0x12303, "Can't conntect to Mifare DESFire target.", error());
+        }
+        mifare_sleep();
+      }
+      m_active = true;
+    }
+
+    void unguard() {
+      if(m_active) {
+        mifare_desfire_disconnect(m_tag);
+        uv_mutex_unlock(&m_reader->mDevice);
+      }
+      m_active = false;
+    }
+
+  private:
+    const Nan::FunctionCallbackInfo<v8::Value> &m_info;
+    CardData *m_data;
+    ReaderData *m_reader;
+    FreefareTag m_tag;
+    bool m_active;
+};
 
 CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
 

@@ -1,10 +1,11 @@
 {
   "name": "node-mifare",
-  "version": "0.1.5",
+  "version": "1.0.1",
   "description": "Read and write Mifare DESFire Cards from nodejs",
-  "main": "build/Release/node_mifare",
+  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "docs": "./node_modules/.bin/documentation build src/**.h -f md -o docs"
   },
   "keywords": [
     "desfire",
@@ -23,6 +24,10 @@
   "dependencies": {
     "libfreefare-pcsc": "git+https://github.com/embeddedfactor/libfreefare-pcsc.git",
     "ndef": "0.1.3",
-    "nan": "2.4.0"
+    "nan": "2.4.0",
+    "bindings": "~1.2.1"
+  },
+  "devDependencies": {
+    "documentation": "~4.0.0-beta15"
   }
 }

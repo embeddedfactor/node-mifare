@@ -1,4 +1,4 @@
-var mifare = require("../build/Debug/node_mifare");
+var mifare = require("bindings")("node_mifare");
 var ndef = require("ndef");
 
 console.log(mifare);
@@ -26,13 +26,13 @@ readers["ACS ACR122U PICC Interface"].listen(function(err, reader, card) {
     var date = new Date();
     var date_str = date.toString();
     var ndef_msg = [
-      ndef.mimeMediaRecord("akraja/pyrmont", date_str)
+      ndef.mimeMediaRecord("akraja/test", date_str)
     ];
 
     var buffer = new Buffer(ndef.encodeMessage(ndef_msg));
 
     //buffer.write(date_str, 0, date_str.length, 'utf8');
-    /*var write;
+    var write;
     for(var i = 0; i<10; i++) {
       console.log("Write", i);
       write = card.writeNdef(buffer);
@@ -44,7 +44,7 @@ readers["ACS ACR122U PICC Interface"].listen(function(err, reader, card) {
       console.log(write);
     } else {
       console.log("Write: ", date_str, buffer);
-    }*/
+    }
 
     var read;
     for(var i = 0; i<10; i++) {

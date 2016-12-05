@@ -26,11 +26,11 @@ void validTrue(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   validResult(info, Nan::New<v8::Boolean>(true));
 }
 
-void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const std::string msg, unsigned int res) {
+MifareError errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const std::string msg, unsigned int res) {
   return errorResult(info, no, msg.c_str(), res);
 }
 
-void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const char *msg, unsigned int res) {
+MifareError errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const char *msg, unsigned int res) {
   v8::Local<v8::Object> result = Nan::New<v8::Object>();
   v8::Local<v8::Array> errors = Nan::New<v8::Array>();
   v8::Local<v8::Object> error = Nan::New<v8::Object>();
@@ -42,6 +42,7 @@ void errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const
   result->Set(Nan::New("err").ToLocalChecked(), errors);
   result->Set(Nan::New("data").ToLocalChecked(), Nan::Undefined());
   info.GetReturnValue().Set(result);
+  return MifareError(msg, no);
 }
 
 v8::Local<v8::Object> buffer(uint8_t *data, size_t len) {
@@ -57,7 +58,7 @@ static int mifare_sleep_msec = 0;
 
 void mifare_set_sleep(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
   if(v8info.Length()!=1 || !v8info[0]->IsNumber()) {
-    return errorResult(v8info, 0x12302, "This function takes a key number as arguments");
+    throw errorResult(v8info, 0x12302, "This function takes a key number as arguments");
   }
   mifare_sleep_msec = v8info[0]->ToInt32()->Value();
 }

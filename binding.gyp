@@ -43,7 +43,6 @@
       },
       "cflags": [
         "-std=c++11",
-        '-stdlib=libc++',
         "-Wall",
         "-Wextra",
         "-Wno-unused-parameter",

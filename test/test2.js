@@ -25,17 +25,21 @@ readers["ACS ACR122U PICC Interface"].listen(function(err, reader, card) {
   try {
     while(1) {
       var res = card.info();
+      console.log(res);
       if(res['err']&&res['err'][0]&&res['err'][0]['res']==0x8010000B) {
         console.log('Error as expected', res['err'][0]);
         throw new Error("Error as expected");
       }
       res = card.readNdef();
+      console.log(res);
       if(res['err']&&res['err'][0]&&res['err'][0]['res']==0x8010000B) {
         console.log('Error as expected', res['err'][0]);
         throw new Error("Error as expected");
       }
       delay(500);
+      process.stdout.write("+");
     }
   } catch(e) {
+    process.stdout.write(".");
   }
 });

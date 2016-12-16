@@ -14,12 +14,9 @@ void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
       throw errorResult(v8info, 0x12302, "This function takes no arguments");
     }
     { // Guarded realm;
-      GuardTag tag_guard(v8info, true);
-
-      res = mifare_desfire_get_version(tag_guard, &info);
-      if(res) {
-        throw errorResult(v8info, 0x12304, freefare_strerror(tag_guard), tag_guard.error());
-      }
+      GuardTag tag(v8info);
+      res = tag.retry(0x12304, "Fetch Tag Version Info",
+                     [&]()->res_t{return mifare_desfire_get_version(tag, &info);});
     }
 
     v8::Local<v8::Array> uid = Nan::New<v8::Array>(7);
@@ -81,7 +78,7 @@ void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     if(info.Length()!=0) {
       throw errorResult(info, 0x12306, "This function takes no arguments");
     }
-    GuardTag tag_guard(info, true);
+    GuardTag tag_guard(info);
 
     res = mifare_desfire_get_key_settings(tag_guard, &settings, &max_keys);
     if(!res) {
@@ -108,8 +105,8 @@ void CardName(const Nan::FunctionCallbackInfo<v8::Value> &info) {
       throw errorResult(info, 0x12302, "This function takes no arguments");
     }
 
-    GuardTag tag_guard(info, true);
-    info.GetReturnValue().Set(Nan::New(freefare_get_tag_friendly_name(tag_guard)).ToLocalChecked());
+    GuardTag tag(info);
+    info.GetReturnValue().Set(Nan::New(tag.name()).ToLocalChecked());
   } catch(MifareError err) {
     // The error is already assigned to the InfoScope
   }
@@ -122,12 +119,10 @@ void CardKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     if(info.Length()!=1 || !info[0]->IsNumber()) {
       throw errorResult(info, 0x12302, "This function takes a key number as arguments");
     }
-    GuardTag tag_guard(info, true);
+    GuardTag tag(info);
 
-    res = mifare_desfire_get_key_version(tag_guard, info[0]->ToUint32()->Value(), &version);
-    if(res) {
-      throw errorResult(info, 0x12308, freefare_strerror(tag_guard), tag_guard.error());
-    }
+    res = tag.retry(0x12308, "Fetch Tag Version Information",
+                   [&]()->res_t{ return mifare_desfire_get_key_version(tag, info[0]->ToUint32()->Value(), &version);});
     info.GetReturnValue().Set(Nan::New(version));
   } catch(MifareError err) {
     // The error is already assigned to the InfoScope
@@ -142,11 +137,9 @@ void CardFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info) {
       throw errorResult(info, 0x12302, "This function takes no arguments");
     }
 
-    GuardTag tag_guard(info, true);
-    res = mifare_desfire_free_mem(tag_guard, &size);
-    if(res) {
-      throw errorResult(info, 0x12309, freefare_strerror(tag_guard), tag_guard.error());
-    }
+    GuardTag tag(info);
+    res = tag.retry(0x12309, "Free Memory",
+                    [&]()->res_t{return mifare_desfire_free_mem(tag, &size);});
     info.GetReturnValue().Set(Nan::New(size));
   } catch(MifareError err) {
     // The error is already assigned to the InfoScope
@@ -296,22 +289,15 @@ void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     uint8_t flags = (configChangable << 3) | (freeCreateDelete << 2) | (freeDirectoryList << 1) | (keyChangable << 0);
     res_t res;
 
-    GuardTag tag_guard(info, true);
+    GuardTag tag(info);
     MifareDESFireKey key_picc = mifare_desfire_des_key_new_with_version(key_data_picc);
-    res = mifare_desfire_authenticate(tag_guard, 0, key_picc);
-    if(res < 0) {
-      throw errorResult(info, 0x12310, "Can't authenticate on Mifare DESFire target.", tag_guard.error());
-    }
+    res = tag.retry(0x12310, "Authenticate on Mifare DESFire target",
+                    [&]()->res_t{return mifare_desfire_authenticate(tag, 0, key_picc);});
     mifare_desfire_key_free(key_picc);
-
-    res = mifare_desfire_change_key_settings(tag_guard, flags);
-    if(res < 0) {
-      throw errorResult(info, 0x12311, "ChangeKeySettings failed", tag_guard.error());
-    }
-    res = mifare_desfire_format_picc(tag_guard);
-    if(res < 0) {
-      throw errorResult(info, 0x12312, "Can't format PICC.", tag_guard.error());
-    }
+    res = tag.retry(0x12311, "Change Key Settings",
+                    [&]()->res_t{return mifare_desfire_change_key_settings(tag, flags);});
+    res = tag.retry(0x12312, "Format PICC",
+                    [&]()->res_t{return mifare_desfire_format_picc(tag);});
     validTrue(info);
   } catch(MifareError err) {
     // The error is already assigned to the InfoScope
@@ -329,12 +315,10 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
       throw errorResult(info, 0x12302, "This function takes no arguments");
     }
 
-    GuardTag tag_guard(info, true);
+    GuardTag tag(info);
     struct mifare_desfire_version_info cardinfo;
-    res = mifare_desfire_get_version(tag_guard, &cardinfo);
-    if(res < 0) {
-      throw errorResult(info, 0x12304, freefare_strerror(tag_guard), tag_guard.error());
-    }
+    res = tag.retry(0x12304, "Fetch Version Infomation",
+                    [&]()->res_t{return mifare_desfire_get_version(tag, &cardinfo);});
 
     int ndef_mapping;
     switch(cardinfo.software.version_major) {
@@ -348,10 +332,8 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 
     /* Initialised Formatting Procedure. See section 6.5.1 and 8.1 of Mifare DESFire as Type 4 Tag document*/
     // Send Mifare DESFire Select Application with AID equal to 000000h to select the PICC level
-    res = mifare_desfire_select_application(tag_guard, NULL);
-    if(res < 0) {
-      throw errorResult(info, 0x12313, "Application selection failed", tag_guard.error());
-    }
+    res = tag.retry(0x12313, "Select Application",
+                    [&]()->res_t{return mifare_desfire_select_application(tag, NULL);});
 
     MifareDESFireKey key_picc;
     MifareDESFireKey key_app;
@@ -359,16 +341,14 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     key_app = mifare_desfire_des_key_new_with_version(key_data_app);
 
     // Authentication with PICC master key MAY be needed to issue ChangeKeySettings command
-    res = mifare_desfire_authenticate(tag_guard, 0, key_picc);
-    if(res < 0) {
-      throw errorResult(info, 0x12310, "Authentication with PICC master key failed", tag_guard.error());
-    }
+    res = tag.retry(0x12310, "Authentication with PICC master key",
+                    [&]()->res_t{return mifare_desfire_authenticate(tag, 0, key_picc);});
 
     MifareDESFireAID aid;
     if(ndef_mapping == 1) {
       uint8_t key_settings;
       uint8_t max_keys;
-      mifare_desfire_get_key_settings(tag_guard, &key_settings, &max_keys);
+      mifare_desfire_get_key_settings(tag, &key_settings, &max_keys);
       if((key_settings & 0x08) == 0x08) {
 
         // Send Mifare DESFire ChangeKeySetting to change the PICC master key settings into :
@@ -377,44 +357,31 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
         // bit2 equal to 0b, CreateApplication and DeleteApplication commands are allowed with PICC master key authentication
         // bit1 equal to 0b, GetApplicationIDs, and GetKeySettings are allowed with PICC master key authentication
         // bit0 equal to Xb, PICC masterkey MAY be frozen or changeable
-        res = mifare_desfire_change_key_settings(tag_guard, 0x09);
-        if(res < 0) {
-          throw errorResult(info, 0x12311, "ChangeKeySettings failed", tag_guard.error());
-        }
+        res = tag.retry(0x12311, "Change Key Settings",
+                        [&]()->res_t{return mifare_desfire_change_key_settings(tag, 0x09);});
       }
 
       // Mifare DESFire Create Application with AID equal to EEEE10h, key settings equal to 0x09, NumOfKeys equal to 01h
       aid = mifare_desfire_aid_new(0xEEEE10);
-      res = mifare_desfire_create_application(tag_guard, aid, 0x09, 1);
-      if(res < 0) {
-        throw errorResult(info, 0x12314, "Application creation failed. Try format before running create.", tag_guard.error());
-      }
-
+      res = tag.retry(0x12314, "Application creation (Try format before running create if failing)",
+                      [&]()->res_t{return mifare_desfire_create_application(tag, aid, 0x09, 1);});
       // Mifare DESFire SelectApplication (Select previously creates application)
-      res = mifare_desfire_select_application(tag_guard, aid);
-      if(res < 0) {
-        throw errorResult(info, 0x12313, "Application selection failed", tag_guard.error());
-      }
+      res = tag.retry(0x12313, "Application selection",
+                      [&]()->res_t{return mifare_desfire_select_application(tag, aid);});
       free(aid);
 
       // Authentication with NDEF Tag Application master key (Authentication with key 0)
-      res = mifare_desfire_authenticate(tag_guard, 0, key_app);
-      if(res < 0) {
-        throw errorResult(info, 0x12310, "Authentication with NDEF Tag Application master key failed", tag_guard.error());
-      }
+      res = tag.retry(0x12310, "Authentication with NDEF Tag Application master key",
+                      [&]()->res_t{return mifare_desfire_authenticate(tag, 0, key_app);});
 
       // Mifare DESFire ChangeKeySetting with key settings equal to 00001001b
-      res = mifare_desfire_change_key_settings(tag_guard, 0x09);
-      if(res < 0) {
-        throw errorResult(info, 0x12311, "ChangeKeySettings failed", tag_guard.error());
-      }
+      res = tag.retry(0x12311, "Change Key Settings",
+                      [&]()->res_t{return mifare_desfire_change_key_settings(tag, 0x09);});
 
       // Mifare DESFire CreateStdDataFile with FileNo equal to 03h (CC File DESFire FID), ComSet equal to 00h,
       // AccesRights equal to E000h, File Size bigger equal to 00000Fh
-      res = mifare_desfire_create_std_data_file(tag_guard, 0x03, MDCM_PLAIN, 0xE000, 0x00000F);
-      if(res < 0) {
-        throw errorResult(info, 0x12315, "CreateStdDataFile failed", tag_guard.error());
-      }
+      res = tag.retry(0x12315, "Create StDataFile",
+                      [&]()->res_t{return mifare_desfire_create_std_data_file(tag, 0x03, MDCM_PLAIN, 0xE000, 0x00000F);});
 
       // Mifare DESFire WriteData to write the content of the CC File with CClEN equal to 000Fh,
       // Mapping Version equal to 10h,MLe equal to 003Bh, MLc equal to 0034h, and NDEF File Control TLV
@@ -432,46 +399,34 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
         0x00            //   free write acces
       };
 
-      res = mifare_desfire_write_data(tag_guard, 0x03, 0, sizeof(capability_container_file_content), capability_container_file_content);
-      if(res < 0) {
-        throw errorResult(info, 0x12316, "Write CC file content failed", tag_guard.error());
-      }
+      res = tag.retry(0x12316, "Write CC file content",
+                      [&]()->res_t{return mifare_desfire_write_data(tag, 0x03, 0, sizeof(capability_container_file_content), capability_container_file_content);});
 
       // Mifare DESFire CreateStdDataFile with FileNo equal to 04h (NDEF FileDESFire FID), CmmSet equal to 00h, AccessRigths
       // equal to EEE0h, FileSize equal to 000EE0h (3808 Bytes)
-      res = mifare_desfire_create_std_data_file(tag_guard, 0x04, MDCM_PLAIN, 0xEEE0, 0x000EE0);
-      if(res < 0) {
-        throw errorResult(info, 0x12317, "CreateStdDataFile failed", tag_guard.error());
-      }
+      res = tag.retry(0x12317, "Create StdDataFile",
+                      [&]()->res_t{return mifare_desfire_create_std_data_file(tag, 0x04, MDCM_PLAIN, 0xEEE0, 0x000EE0);});
     } else if(ndef_mapping == 2) {
       // Mifare DESFire Create Application with AID equal to 000001h, key settings equal to 0x0F, NumOfKeys equal to 01h,
       // 2 bytes File Identifiers supported, File-ID equal to E110h
       aid = mifare_desfire_aid_new(0x000001);
       uint8_t app[] = { 0xd2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01 };
-      res = mifare_desfire_create_application_iso(tag_guard, aid, 0x0F, 0x21, 0, 0xE110, app, sizeof(app));
-      if(res < 0) {
-        throw errorResult(info, 0x12314, "Application creation failed. Try format before running.", tag_guard.error());
-      }
+      res = tag.retry(0x12314, "Application Creation",
+                      [&]()->res_t{return mifare_desfire_create_application_iso(tag, aid, 0x0F, 0x21, 0, 0xE110, app, sizeof(app));});
 
       // Mifare DESFire SelectApplication (Select previously creates application)
-      res = mifare_desfire_select_application(tag_guard, aid);
-      if(res < 0) {
-        throw errorResult(info, 0x12313, "Application selection failed", tag_guard.error());
-      }
+      res = tag.retry(0x12313, "Application Selection",
+                      [&]()->res_t{return mifare_desfire_select_application(tag, aid);});
       free(aid);
 
       // Authentication with NDEF Tag Application master key (Authentication with key 0)
-      res = mifare_desfire_authenticate(tag_guard, 0, key_app);
-      if(res < 0) {
-        throw errorResult(info, 0x12310, "Authentication with NDEF Tag Application master key failed", tag_guard.error());
-      }
+      res = tag.retry(0x12310, "Authentication with NDEF Tag Application master key",
+                      [&]()->res_t{return mifare_desfire_authenticate(tag, 0, key_app);});
 
       // Mifare DESFire CreateStdDataFile with FileNo equal to 01h (DESFire FID), ComSet equal to 00h,
       // AccesRights equal to E000h, File Size bigger equal to 00000Fh, ISO File ID equal to E103h
-      res = mifare_desfire_create_std_data_file_iso(tag_guard, 0x01, MDCM_PLAIN, 0xE000, 0x00000F, 0xE103);
-      if(res < 0) {
-        throw errorResult(info, 0x12316, "CreateStdDataFileIso failed", tag_guard.error());
-      }
+      res = tag.retry(0x12316, "Create StdDataFileIso",
+                      [&]()->res_t{return mifare_desfire_create_std_data_file_iso(tag, 0x01, MDCM_PLAIN, 0xE000, 0x00000F, 0xE103);});
 
       // Mifare DESFire WriteData to write the content of the CC File with CClEN equal to 000Fh,
       // Mapping Version equal to 20h,MLe equal to 003Bh, MLc equal to 0034h, and NDEF File Control TLV
@@ -499,17 +454,13 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
       }
       capability_container_file_content[11] = ndef_max_size >> 8;
       capability_container_file_content[12] = ndef_max_size & 0xFF;
-      res = mifare_desfire_write_data(tag_guard, 0x01, 0, sizeof(capability_container_file_content), capability_container_file_content);
-      if(res < 0) {
-        throw errorResult(info, 0x12317, "Write CC file content failed", tag_guard.error());
-      }
+      res = tag.retry(0x12317, "Write CC file content",
+                      [&]()->res_t{return mifare_desfire_write_data(tag, 0x01, 0, sizeof(capability_container_file_content), capability_container_file_content);});
 
       // Mifare DESFire CreateStdDataFile with FileNo equal to 02h (DESFire FID), CmmSet equal to 00h, AccessRigths
       // equal to EEE0h, FileSize equal to ndefmaxsize (0x000800, 0x001000 or 0x001E00)
-      res = mifare_desfire_create_std_data_file_iso(tag_guard, 0x02, MDCM_PLAIN, 0xEEE0, ndef_max_size, 0xE104);
-      if(res < 0) {
-        throw errorResult(info, 0x12318, "CreateStdDataFileIso failed", tag_guard.error());
-      }
+      res = tag.retry(0x12318, "Create StdDataFileIso",
+                      [&]()->res_t{return mifare_desfire_create_std_data_file_iso(tag, 0x02, MDCM_PLAIN, 0xEEE0, ndef_max_size, 0xE104);});
     }
     mifare_desfire_key_free(key_picc);
     mifare_desfire_key_free(key_app);
@@ -522,17 +473,15 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 
 
 
-int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, GuardTag &tag_guard, uint8_t &file_no, uint16_t &ndef_max_len, MifareDESFireKey key_app) {
+int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, GuardTag &tag, uint8_t &file_no, uint16_t &ndef_max_len, MifareDESFireKey key_app) {
   int version;
   res_t res;
   uint8_t *cc_data;
   // #### Get Version
   // We've to track DESFire version as NDEF mapping is different
   struct mifare_desfire_version_info info;
-  res = mifare_desfire_get_version(tag_guard, &info);
-  if(res < 0) {
-    throw errorResult(v8info, 0x12304, freefare_strerror(tag_guard), tag_guard.error());
-  }
+  res = tag.retry(0x12304, "Fetch Tag Version Info",
+                  [&]()->res_t{return mifare_desfire_get_version(tag, &info);});
   version = info.software.version_major;
 
   // ### Select app
@@ -545,32 +494,29 @@ int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, GuardTag
       // Let's assume it's in AID 000001h as proposed in the spec
       aid = mifare_desfire_aid_new(0x000001);
   }
-  res = mifare_desfire_select_application(tag_guard, aid);
-  if(res < 0) {
-    throw errorResult(v8info, 0x12313, "Application selection failed. No NDEF application found.", tag_guard.error());
-  }
+  res = tag.retry(0x12313, "Application selection (NDEF application)",
+                  [&]()->res_t{return mifare_desfire_select_application(tag, aid);});
   free(aid);
 
   // ### Authentication
   // NDEF Tag Application master key (Authentication with key 0)
-  res = mifare_desfire_authenticate(tag_guard, 0, key_app);
-  if(res < 0) {
-    throw errorResult(v8info, 0x12310, "Authentication with NDEF Tag Application master key failed", tag_guard.error());
-  }
+  res = tag.retry(0x12310, "Authentication with NDEF Tag Application master key",
+                  [&]()->res_t{return mifare_desfire_authenticate(tag, 0, key_app);});
 
   // ### Read index
   // Read Capability Container file E103
   uint8_t lendata[22]; // cf FIXME in mifare_desfire.c read_data()
-  if(version == 0) {
-      res = mifare_desfire_read_data(tag_guard, 0x03, 0, 2, lendata);
-  } else {
-      // There is no more relationship between DESFire FID and ISO FileID...
-      // Let's assume it's in FID 01h as proposed in the spec
-      res = mifare_desfire_read_data(tag_guard, 0x01, 0, 2, lendata);
-  }
+  res = tag.retry(0x12320, "Reading the ndef capability container file length",
+                  [&]()->res_t{if(version == 0) {
+                          return mifare_desfire_read_data(tag, 0x03, 0, 2, lendata);
+                        } else {
+                          // There is no more relationship between DESFire FID and ISO FileID...
+                          // Let's assume it's in FID 01h as proposed in the spec
+                          return mifare_desfire_read_data(tag, 0x01, 0, 2, lendata);
+                        }});
 
-  if(res < 0 || res > 2) {
-    throw errorResult(v8info, 0x12320, "Reading the ndef capability container file (E103) failed", tag_guard.error());
+  if(res > 2) {
+    throw errorResult(v8info, 0x12320, "Reading the ndef capability container file length to long");
   }
   uint32_t cclen = (((uint16_t)lendata[0]) << 8) + ((uint16_t)lendata[1]);
   if(cclen < 15) {
@@ -579,15 +525,12 @@ int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, GuardTag
   if(!(cc_data = new uint8_t[cclen + 20])) { // cf FIXME in mifare_desfire.c read_data()
     throw errorResult(v8info, 0x12322, "Allocation of ndef capability container file (E103) failed");
   }
-  if(version == 0) {
-      res = mifare_desfire_read_data(tag_guard, 0x03, 0, cclen, cc_data);
-  } else {
-      res = mifare_desfire_read_data(tag_guard, 0x01, 0, cclen, cc_data);
-  }
-  if(res < 0) {
-    throw errorResult(v8info, 0x12320, "Reading the ndef capability container file data (E103) failed", tag_guard.error());
-  }
-
+  res = tag.retry(0x12320, "Reading the ndef capability container file",
+                  [&]()->res_t{if(version == 0) {
+                          return mifare_desfire_read_data(tag, 0x03, 0, cclen, cc_data);
+                        } else {
+                          return mifare_desfire_read_data(tag, 0x01, 0, cclen, cc_data);
+                        }});
   // Search NDEF File Control TLV
   uint32_t off = 7;
   while(((off + 7) < cclen) && (cc_data[off] != 0x04)) {
@@ -626,19 +569,17 @@ void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     if(info.Length()!=0) {
       throw errorResult(info, 0x12302, "This function does not take any arguments");
     }
-    GuardTag tag_guard(info, true);
+    GuardTag tag(info);
     MifareDESFireKey key_app;
     key_app = mifare_desfire_des_key_new_with_version(ndef_read_key);
-    res = CardReadNdefTVL(info, tag_guard, file_no, ndef_msg_len_max, key_app);
+    res = CardReadNdefTVL(info, tag, file_no, ndef_msg_len_max, key_app);
     mifare_desfire_key_free(key_app);
     if(!(ndef_msg = new uint8_t[ndef_msg_len_max + 20])) { // cf FIXME in mifare_desfire.c read_data()
       throw errorResult(info, 0x12325, "Allocation of ndef file failed");
     }
     uint8_t lendata[20]; // cf FIXME in mifare_desfire.c read_data()
-    res = mifare_desfire_read_data(tag_guard, file_no, 0, 2, lendata);
-    if(res < 0) {
-      throw errorResult(info, 0x12326, "Reading of ndef file failed");
-    }
+    res = tag.retry(0x12326, "Reading of NDEF file",
+                    [&]()->res_t{return mifare_desfire_read_data(tag, file_no, 0, 2, lendata);});
     ndef_msg_len = (((uint16_t)lendata[0]) << 8) + ((uint16_t)lendata[1]);
     if(ndef_msg_len + 2 > ndef_msg_len_max) {
       throw errorResult(info, 0x12327, "Declared ndef size larger than max ndef size");
@@ -646,10 +587,8 @@ void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     if(ndef_msg_len == 0) {
       throw errorResult(info, 0x12332, "Declared ndef size is zero last write was faulty");
     }
-    res = mifare_desfire_read_data(tag_guard, file_no, 2, ndef_msg_len, ndef_msg);
-    if(res < 0) {
-      throw errorResult(info, 0x12326, "Reading ndef message faild");
-    }
+    res = tag.retry(0x12326, "Reading NDEF message faild",
+                    [&]()->res_t{return mifare_desfire_read_data(tag, file_no, 2, ndef_msg_len, ndef_msg);});
     if(res != ndef_msg_len){
       throw errorResult(info, 0x12329, "Reading full ndef message failed");
     }
@@ -680,12 +619,12 @@ void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     }
     ndef_msg_len = node::Buffer::Length(info[0]);
     ndef_msg = reinterpret_cast<uint8_t *>(node::Buffer::Data(info[0]));
-    GuardTag tag_guard(info, true);
+    GuardTag tag(info);
 
     MifareDESFireKey key_app;
     key_app = mifare_desfire_des_key_new_with_version(ndef_read_key);
 
-    res = CardReadNdefTVL(info, tag_guard, file_no, ndef_msg_len_max, key_app);
+    res = CardReadNdefTVL(info, tag, file_no, ndef_msg_len_max, key_app);
     result->Set(Nan::New("maxLength").ToLocalChecked(), Nan::New(ndef_msg_len_max));
     if(ndef_msg_len > ndef_msg_len_max) {
       throw errorResult(info, 0x12327, "Supplied NDEF larger than max NDEF size");
@@ -694,21 +633,15 @@ void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     ndef_msg_len_bigendian[0] = (uint8_t)((ndef_msg_len) >> 8);
     ndef_msg_len_bigendian[1] = (uint8_t)(ndef_msg_len);
     //Mifare DESFire WriteData to write the content of the NDEF File with NLEN equal to NDEF Message length and NDEF Message
-    res = mifare_desfire_write_data(tag_guard, file_no, 0, 2, (uint8_t*)&ndef_msg_len_zero);
-    if(res < 0) {
-      throw errorResult(info, 0x12328, "Writing ndef message size pre faild");
-    }
-    res = mifare_desfire_write_data(tag_guard, file_no, 2, ndef_msg_len, reinterpret_cast<uint8_t*>(ndef_msg));
+    res = tag.retry(0x12328, "Write NDEF message size (zero)",
+                    [&]()->res_t{return mifare_desfire_write_data(tag, file_no, 0, 2, (uint8_t*)&ndef_msg_len_zero);});
+    res = tag.retry(0x12330, "Write NDEF message",
+                    [&]()->res_t{return mifare_desfire_write_data(tag, file_no, 2, ndef_msg_len, reinterpret_cast<uint8_t*>(ndef_msg));});
     if(res != ndef_msg_len) {
       throw errorResult(info, 0x12329, "Writing full ndef message failed");
     }
-    if(res < 0) {
-      throw errorResult(info, 0x12330, "Writing ndef message failed");
-    }
-    res = mifare_desfire_write_data(tag_guard, file_no, 0, 2, ndef_msg_len_bigendian);
-    if(res < 0) {
-      throw errorResult(info, 0x12331, "Writing ndef message size post faild");
-    }
+    res = tag.retry(0x12331, "Write ndef message size (real)",
+                    [&]()->res_t{return mifare_desfire_write_data(tag, file_no, 0, 2, ndef_msg_len_bigendian);});
     validTrue(info);
   } catch(MifareError err) {
     // The error is already assigned to the InfoScope

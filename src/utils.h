@@ -71,14 +71,6 @@ class MifareError : public std::exception {
 };
 
 /**
- * Retries a clousre for retries times.
- * The clousre returns a boolean if it is false it will be retried until the maximum time are reached.
- * @param retries Number of times to try a clousre.
- * @param try_f The clousre function to call.
- */
-void retry(int retries, bool (*try_f)());
-
-/**
  * Returnes a valid result object and attaches it to the info scope.
  * @param info The InfoScope object used by the javascript function.
  * @param data The data object to return.
@@ -101,7 +93,7 @@ void validTrue(const Nan::FunctionCallbackInfo<v8::Value> &info);
  * @param res An internal error code from the underlying implementation (PCSC).
  * @return Returns a MifareError object to throw.
  **/
-MifareError errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const char *msg, unsigned int res=0);
+MifareError errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const char *msg, unsigned int res=0, const char *msg2 = "");
 
 /**
  * Generates a error result object and attaches it to the info scope
@@ -111,7 +103,7 @@ MifareError errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no
  * @param res An internal error code from the underlying implementation (PCSC).
  * @return Returns a MifareError object to throw.
  **/
-MifareError errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const std::string msg, unsigned int res=0);
+MifareError errorResult(const Nan::FunctionCallbackInfo<v8::Value> &info, int no, const std::string msg, unsigned int res=0, const std::string msg2 = "");
 
 /**
  * Make an node::Buffer from unsigned char pointer and length

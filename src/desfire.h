@@ -24,6 +24,7 @@
 #include "reader.h"
 #include "utils.h"
 #include <cstdlib>
+#include <functional>
 
 class CardData {
   public:
@@ -68,7 +69,7 @@ inline CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &
 
 class GuardTag {
   public:
-    GuardTag(const Nan::FunctionCallbackInfo<v8::Value> &info, bool active = false) : m_info(info), m_data(CardData_from_info(info)), m_reader(m_data->reader), m_tag(m_data->tag), m_active(false) {
+    GuardTag(const Nan::FunctionCallbackInfo<v8::Value> &info, bool active = true) : m_info(info), m_data(CardData_from_info(info)), m_active(false) {
       if(active) {
         guard();
       }
@@ -78,29 +79,56 @@ class GuardTag {
       unguard();
     }
 
-    operator CardData*() {
+    CardData* data() {
       return m_data;
     }
 
-    operator ReaderData*() {
-      return m_reader;
+    ReaderData* reader() {
+      return m_data->reader;
     }
 
     operator FreefareTag() {
-      return m_tag;
+      return m_data->tag;
     }
 
+    res_t retry(unsigned int pos_code, const char *name, std::function<res_t ()> try_f, int tries=3) {
+      res_t ret_code = 0;
+      unsigned int int_code = 0;
+      while(tries>0) {
+        ret_code = try_f();
+        int_code = error();
+        --tries;
+        if(ret_code>=0) {
+          return ret_code;
+        } else { // ERROR ret is negative
+          if(int_code==0x80100010) { // CMD ERROR
+            continue;
+          } else {
+            throw errorResult(m_info, pos_code, errorString(), int_code, name);
+          }
+        }
+      }
+      return ret_code;
+    }
+
+    const char *name() {
+      return freefare_get_tag_friendly_name(m_data->tag);
+    }
     unsigned int error() {
-      return freefare_internal_error(m_tag);
+      return freefare_internal_error(m_data->tag);
+    }
+
+    const char *errorString() {
+      return freefare_strerror(m_data->tag);
     }
 
     void guard() {
       if(!m_active) {
         int res = 0;
-        uv_mutex_lock(  &m_reader->mDevice);
-        res = mifare_desfire_connect(m_tag);
+        uv_mutex_lock(  &m_data->reader->mDevice);
+        res = mifare_desfire_connect(m_data->tag);
         if(res) {
-          uv_mutex_unlock(&m_reader->mDevice);
+          uv_mutex_unlock(&m_data->reader->mDevice);
           throw errorResult(m_info, 0x12303, "Can't conntect to Mifare DESFire target.", error());
         }
         mifare_sleep();
@@ -110,8 +138,8 @@ class GuardTag {
 
     void unguard() {
       if(m_active) {
-        mifare_desfire_disconnect(m_tag);
-        uv_mutex_unlock(&m_reader->mDevice);
+        mifare_desfire_disconnect(m_data->tag);
+        uv_mutex_unlock(&m_data->reader->mDevice);
       }
       m_active = false;
     }
@@ -119,8 +147,6 @@ class GuardTag {
   private:
     const Nan::FunctionCallbackInfo<v8::Value> &m_info;
     CardData *m_data;
-    ReaderData *m_reader;
-    FreefareTag m_tag;
     bool m_active;
 };
 
@@ -153,8 +179,6 @@ int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &info, CardData *
 void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
-
-void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 void CardFree(const Nan::FunctionCallbackInfo<v8::Value> &info);
 

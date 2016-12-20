@@ -44,6 +44,8 @@ class CardData {
         aid = NULL;
       }
       freefare_free_tags(tags.get());
+      tag = NULL;
+      tags = NULL;
     }
 
     ReaderData *reader;
@@ -63,13 +65,14 @@ inline CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &
   if(!data) {
     throw errorResult(info, 0x12301, "Card is already free");
   }
-
   return data;
 }
 
 class GuardTag {
   public:
-    GuardTag(const Nan::FunctionCallbackInfo<v8::Value> &info, bool active = true) : m_info(info), m_data(CardData_from_info(info)), m_active(false) {
+    GuardTag(const Nan::FunctionCallbackInfo<v8::Value> &info, bool active = true)
+      : m_info(info), m_data(CardData_from_info(info)), m_reader(m_data->reader), m_active(false) {
+      // We store the m_data->reader pointer as m_reader in case m_data is destroyed for some reason.
       if(active) {
         guard();
       }
@@ -84,7 +87,7 @@ class GuardTag {
     }
 
     ReaderData* reader() {
-      return m_data->reader;
+      return m_reader;
     }
 
     operator FreefareTag() {
@@ -112,24 +115,38 @@ class GuardTag {
     }
 
     const char *name() {
-      return freefare_get_tag_friendly_name(m_data->tag);
+      if(m_data) {
+        return freefare_get_tag_friendly_name(m_data->tag);
+      } else {
+        return "UNKNOWN";
+      }
     }
     unsigned int error() {
-      return freefare_internal_error(m_data->tag);
+      if(m_data) {
+        return freefare_internal_error(m_data->tag);
+      } else {
+        return 0;
+      }
     }
 
     const char *errorString() {
-      return freefare_strerror(m_data->tag);
+      if(m_data) {
+        return freefare_strerror(m_data->tag);
+      } else {
+        return "data struct is NULL";
+      }
     }
 
     void guard() {
       if(!m_active) {
         int res = 0;
-        uv_mutex_lock(  &m_data->reader->mDevice);
-        res = mifare_desfire_connect(m_data->tag);
-        if(res) {
-          uv_mutex_unlock(&m_data->reader->mDevice);
-          throw errorResult(m_info, 0x12303, "Can't conntect to Mifare DESFire target.", error());
+        uv_mutex_lock(  &m_reader->mDevice);
+        if(m_data) {
+          res = mifare_desfire_connect(m_data->tag);
+          if(res) {
+            uv_mutex_unlock(&m_reader->mDevice);
+            throw errorResult(m_info, 0x12303, "Can't conntect to Mifare DESFire target.", error());
+          }
         }
         mifare_sleep();
       }
@@ -138,8 +155,10 @@ class GuardTag {
 
     void unguard() {
       if(m_active) {
-        mifare_desfire_disconnect(m_data->tag);
-        uv_mutex_unlock(&m_data->reader->mDevice);
+        if(m_data) {
+          mifare_desfire_disconnect(m_data->tag);
+        }
+        uv_mutex_unlock(&m_reader->mDevice);
       }
       m_active = false;
     }
@@ -147,6 +166,7 @@ class GuardTag {
   private:
     const Nan::FunctionCallbackInfo<v8::Value> &m_info;
     CardData *m_data;
+    ReaderData *m_reader;
     bool m_active;
 };
 

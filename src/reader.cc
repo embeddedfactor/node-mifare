@@ -223,9 +223,6 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 
       // Card object, will be eventually filled lateron
       if(event & SCARD_STATE_PRESENT) {
-        if(data->state.cbAtr>0) {
-        }
-
         // Establishes a connection to a smart card contained by a specific reader.
         FreefareTag *tags = freefare_get_tags_pcsc(data->context, data->state.szReader);
         // XXX: With PCSC tags is always length 2 with {tag, NULL} we assume this is allways the case here!!!!

@@ -51,7 +51,7 @@ void mifare_set_sleep(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
   if(v8info.Length()!=1 || !v8info[0]->IsNumber()) {
     throw errorResult(v8info, 0x12302, "This function takes a key number as arguments");
   }
-  mifare_sleep_msec = v8info[0]->ToInt32()->Value();
+  mifare_sleep_msec = Nan::To<int32_t>(v8info[0]).FromJust();
 }
 
 void mifare_sleep() {

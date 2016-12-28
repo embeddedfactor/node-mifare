@@ -100,21 +100,21 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 
         CardData *cardData = new CardData(data, tags);
         cardData->tag = t;
-        Nan::Local<v8::Object> card = Nan::New<v8::Object>();
-        card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
-        Nan::SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData);
+        v8::Local<v8::Object> card = Nan::New<v8::Object>();
+        Nan::Set(card, Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
+        Nan::SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
 
-        card->Set(Nan::New("info").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardInfo)->GetFunction());
-        card->Set(Nan::New("masterKeyInfo").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardMasterKeyInfo)->GetFunction());
-        card->Set(Nan::New("keyVersion").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardKeyVersion)->GetFunction());
-        card->Set(Nan::New("freeMemory").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFreeMemory)->GetFunction());
-        card->Set(Nan::New("setKey").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardSetKey)->GetFunction());
-        card->Set(Nan::New("setAid").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardSetAid)->GetFunction());
-        card->Set(Nan::New("format").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFormat)->GetFunction());
-        card->Set(Nan::New("createNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardCreateNdef)->GetFunction());
-        card->Set(Nan::New("readNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardReadNdef)->GetFunction());
-        card->Set(Nan::New("writeNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardWriteNdef)->GetFunction());
-        card->Set(Nan::New("free").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFree)->GetFunction());
+        Nan::SetMethod(card, "info", CardInfo);
+        Nan::SetMethod(card, "masterKeyInfo", CardMasterKeyInfo);
+        Nan::SetMethod(card, "keyVersion", CardKeyVersion);
+        Nan::SetMethod(card, "freeMemory", CardFreeMemory);
+        Nan::SetMethod(card, "setKey", CardSetKey);
+        Nan::SetMethod(card, "setAid", CardSetAid);
+        Nan::SetMethod(card, "format", CardFormat);
+        Nan::SetMethod(card, "createNdef", CardCreateNdef);
+        Nan::SetMethod(card, "readNdef", CardReadNdef);
+        Nan::SetMethod(card, "writeNdef", CardWriteNdef);
+        Nan::SetMethod(card, "free", CardFree);
 
         const unsigned argc = 3;
         Nan::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, card };
@@ -234,20 +234,20 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
             CardData *cardData = new CardData(data, tags);
             cardData->tag = tags[i];
             v8::Local<v8::Object> card = Nan::New<v8::Object>();
-            card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
+            Nan::Set(card, Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
             Nan::SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
 
-            card->Set(Nan::New("info").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardInfo)->GetFunction());
-            card->Set(Nan::New("masterKeyInfo").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardMasterKeyInfo)->GetFunction());
-            card->Set(Nan::New("keyVersion").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardKeyVersion)->GetFunction());
-            card->Set(Nan::New("freeMemory").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFreeMemory)->GetFunction());
-            card->Set(Nan::New("setKey").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardSetKey)->GetFunction());
-            card->Set(Nan::New("setAid").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardSetAid)->GetFunction());
-            card->Set(Nan::New("format").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFormat)->GetFunction());
-            card->Set(Nan::New("createNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardCreateNdef)->GetFunction());
-            card->Set(Nan::New("readNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardReadNdef)->GetFunction());
-            card->Set(Nan::New("writeNdef").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardWriteNdef)->GetFunction());
-            card->Set(Nan::New("free").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardFree)->GetFunction());
+            Nan::SetMethod(card, "info", CardInfo);
+            Nan::SetMethod(card, "masterKeyInfo", CardMasterKeyInfo);
+            Nan::SetMethod(card, "keyVersion", CardKeyVersion);
+            Nan::SetMethod(card, "freeMemory", CardFreeMemory);
+            Nan::SetMethod(card, "setKey", CardSetKey);
+            Nan::SetMethod(card, "setAid", CardSetAid);
+            Nan::SetMethod(card, "format", CardFormat);
+            Nan::SetMethod(card, "createNdef", CardCreateNdef);
+            Nan::SetMethod(card, "readNdef", CardReadNdef);
+            Nan::SetMethod(card, "writeNdef", CardWriteNdef);
+            Nan::SetMethod(card, "free", CardFree);
 
             const unsigned argc = 3;
             v8::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, card };

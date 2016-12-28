@@ -111,10 +111,10 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     // Node Object:
     v8::Local<v8::External> data = Nan::New<v8::External>(readers_data.back());
     v8::Local<v8::Object> reader = Nan::New<v8::Object>();
-    reader->Set(Nan::New("name").ToLocalChecked(), Nan::New(reader_iter).ToLocalChecked());
-    reader->Set(Nan::New("listen").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(ReaderListen)->GetFunction());
-    reader->Set(Nan::New("release").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(ReaderRelease)->GetFunction());
-    readers_local->Set(Nan::New(reader_iter).ToLocalChecked(), reader);
+    Nan::Set(reader, Nan::New("name").ToLocalChecked(), Nan::New(reader_iter).ToLocalChecked());
+    Nan::SetMethod(reader, "listen", ReaderListen);
+    Nan::SetMethod(reader, "release", ReaderRelease);
+    Nan::Set(readers_local, Nan::New(reader_iter).ToLocalChecked(), reader);
     Nan::SetPrivate(reader, Nan::New("data").ToLocalChecked(), data);
 #if defined(USE_LIBNFC)
     reader_iter += sizeof(nfc_connstring);
@@ -128,17 +128,12 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 }
 
 /**
- * Node.js initialization function
- * @param exports The Commonjs module exports object
+ * Node.js NaN initialization function
  **/
 
-void init(v8::Local<v8::Object> exports) {
-  context = NULL;
-
-  exports->Set(Nan::New("getReader").ToLocalChecked(),
-      Nan::New<v8::FunctionTemplate>(getReader)->GetFunction());
-  exports->Set(Nan::New("setSleep").ToLocalChecked(),
-      Nan::New<v8::FunctionTemplate>(mifare_set_sleep)->GetFunction());
+NAN_MODULE_INIT(init) {
+  Nan::Export(target, "getReader", getReader);
+  Nan::Export(target, "setSleep", mifare_set_sleep);
 }
 
 NODE_MODULE(node_mifare, init)

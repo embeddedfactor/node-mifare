@@ -52,6 +52,7 @@ struct ReaderData {
     this->state.pvUserData = this;
 #endif
     uv_mutex_init(&this->mDevice);
+    uv_timer_init(uv_default_loop(), &timer);
   }
 
   ~ReaderData() {

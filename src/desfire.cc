@@ -6,7 +6,6 @@
 
 void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
   try {
-    res_t res;
     v8::Local<v8::Object> card = Nan::New<v8::Object>();
     struct mifare_desfire_version_info info;
 
@@ -15,8 +14,8 @@ void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
     }
     { // Guarded realm;
       GuardTag tag(v8info);
-      res = tag.retry(0x12304, "Fetch Tag Version Info",
-                     [&]()mutable->res_t{return mifare_desfire_get_version(tag, &info);});
+      tag.retry(0x12304, "Fetch Tag Version Info",
+                [&]()mutable->res_t{return mifare_desfire_get_version(tag, &info);});
     }
 
     v8::Local<v8::Array> uid = Nan::New<v8::Array>(7);

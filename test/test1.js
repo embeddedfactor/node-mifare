@@ -1,17 +1,16 @@
 var mifare = require("bindings")("node_mifare");
 var ndef = require("ndef");
 
-console.log(mifare);
+function first(obj) {
+    for (var a in obj) {
+        return a;
+    }
+}
 
 var readers = mifare.getReader();
-console.log(readers);
-readers["ACS ACR122U PICC Interface"].listen(function(err, reader, card) {});
-
 readers = mifare.getReader();
-console.log(readers);
-//readers["ACS ACR122U PICC Interface 00 00"].listen(function(err, reader, card) {
-//readers["ACS ACR122 0"].listen(function(err, reader, card) {
-readers["ACS ACR122U PICC Interface"].listen(function(err, reader, card) {
+reader = readers[first(readers)];
+reader.listen(function(err, reader, card) {
   //card.setKey([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], "aes", true, 1);
   //card.setAid(0x542B);
   //console.log(err, reader, card);
@@ -36,14 +35,13 @@ readers["ACS ACR122U PICC Interface"].listen(function(err, reader, card) {
     for(var i = 0; i<10; i++) {
       console.log("Write", i);
       write = card.writeNdef(buffer);
-      if((write && write.err && write.err.length == 0)) {
+      if((write && write.err && write.err.length)) {
+        console.log(i, "Error", write)
+        return;
+      } else {
+        console.log(i, "Write", write, buffer)
         break;
       }
-    }
-    if(write && write.err && write.err.length) {
-      console.log(write);
-    } else {
-      console.log("Write: ", date_str, buffer);
     }
 
     var read;
@@ -51,6 +49,7 @@ readers["ACS ACR122U PICC Interface"].listen(function(err, reader, card) {
       read = card.readNdef();
       if(read && read.err && read.err.length) {
         console.log(i, "Error:", read);
+        return;
       } else {
         console.log(i, "Read:", read);
       }

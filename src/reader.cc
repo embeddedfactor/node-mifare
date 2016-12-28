@@ -10,7 +10,7 @@
 ReaderData *ReaderData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   return static_cast<ReaderData *>(
     v8::Local<v8::External>::Cast(
-      GetPrivate(info.This(), Nan::New("data").ToLocalChecked())
+      Nan::GetPrivate(info.This(), Nan::New("data").ToLocalChecked()).ToLocalChecked()
     )->Value()
   );
 }
@@ -23,9 +23,10 @@ void reader_timer_callback(uv_timer_t *handle) {
 #else
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 #endif
+  Nan::HandleScope scope;
   ReaderData *data = static_cast<ReaderData *>(handle->data);
   v8::Local<v8::String> status;
-  v8::Local<v8::Object> reader = Nan::New<v8::Object>(data->self);
+  v8::Local<v8::Object> reader = Nan::New(data->self);
   GuardReader reader_guard(data, true);
   reader->Set(Nan::New("name").ToLocalChecked(), Nan::New(data->name.c_str()).ToLocalChecked());
 
@@ -101,7 +102,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         cardData->tag = t;
         Nan::Local<v8::Object> card = Nan::New<v8::Object>();
         card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
-        SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData);
+        Nan::SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData);
 
         card->Set(Nan::New("info").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardInfo)->GetFunction());
         card->Set(Nan::New("masterKeyInfo").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardMasterKeyInfo)->GetFunction());
@@ -186,11 +187,12 @@ void reader_timer_callback(uv_timer_t *handle) {
 #else
 void reader_timer_callback(uv_timer_t *handle, int timer_status) {
 #endif
+  Nan::HandleScope scope;
   ReaderData *data = static_cast<ReaderData *>(handle->data);
   LONG res;
   DWORD event;
   v8::Local<v8::String> status;
-  v8::Local<v8::Object> reader = Nan::New<v8::Object>(data->self);
+  v8::Local<v8::Object> reader = Nan::New(data->self);
   reader->Set(Nan::New("name").ToLocalChecked(), Nan::New(data->name.c_str()).ToLocalChecked());
 
   res = SCardGetStatusChange(data->context->context, 1, &data->state, 1);
@@ -233,7 +235,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
             cardData->tag = tags[i];
             v8::Local<v8::Object> card = Nan::New<v8::Object>();
             card->Set(Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
-            SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
+            Nan::SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
 
             card->Set(Nan::New("info").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardInfo)->GetFunction());
             card->Set(Nan::New("masterKeyInfo").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(CardMasterKeyInfo)->GetFunction());
@@ -303,13 +305,13 @@ void ReaderListen(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 
 #if defined(USE_LIBNFC)
     GuardReader reader_guard(data, true);
-    if (data->context && data->device == NULL)
+    if (data->context && data->device == NULL) {
       data->device = nfc_open(data->context, data->name.c_str());
+    }
 #endif
-    data->callback.Reset(Nan::Persistent<v8::Function>(info[0].As<v8::Function>()));
-    data->self.Reset(Nan::Persistent<v8::Object>(info.This()));
+    data->callback.Reset(info[0].As<v8::Function>());
+    data->self.Reset(info.This());
 
-    uv_timer_init(uv_default_loop(), &data->timer);
     uv_timer_start(&data->timer, reader_timer_callback, 500, 250);
     info.GetReturnValue().Set(info.This());
   }

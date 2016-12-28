@@ -115,7 +115,7 @@ void getReader(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     reader->Set(Nan::New("listen").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(ReaderListen)->GetFunction());
     reader->Set(Nan::New("release").ToLocalChecked(), Nan::New<v8::FunctionTemplate>(ReaderRelease)->GetFunction());
     readers_local->Set(Nan::New(reader_iter).ToLocalChecked(), reader);
-    SetPrivate(reader, Nan::New("data").ToLocalChecked(), data);
+    Nan::SetPrivate(reader, Nan::New("data").ToLocalChecked(), data);
 #if defined(USE_LIBNFC)
     reader_iter += sizeof(nfc_connstring);
 #else

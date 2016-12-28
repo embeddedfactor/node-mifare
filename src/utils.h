@@ -132,7 +132,4 @@ void mifare_set_sleep(const Nan::FunctionCallbackInfo<v8::Value> &v8info);
  **/
 void mifare_sleep();
 
-// NaN Helper for nodejs 7.1.0
-v8::Local<v8::Value> GetPrivate(v8::Local<v8::Object> object, v8::Local<v8::String> key);
-void SetPrivate(v8::Local<v8::Object> object, v8::Local<v8::String> key, v8::Local<v8::Value> value);
 #endif // UTILS_H

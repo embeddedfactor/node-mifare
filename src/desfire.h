@@ -26,14 +26,17 @@
 #include <cstdlib>
 #include <functional>
 
+/* A data object collecting all interesting details for a tag */
 class CardData {
   public:
+    /* The data object is created from a reader data object and a freefare tag object */
     CardData(ReaderData *reader, FreefareTag *tags) : reader(reader), tags(tags) {
       uint8_t null[8] = {0,0,0,0,0,0,0,0};
       key = mifare_desfire_des_key_new(null);
       aid = mifare_desfire_aid_new(0x000001);
     }
 
+    /* If destroyed it will free the tags as well */
     ~CardData() {
       if(key) {
         mifare_desfire_key_free(key);
@@ -55,10 +58,11 @@ class CardData {
     MifareDESFireAID aid;
 };
 
+/* Extracts Tag data object from nodejs info context */
 inline CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   CardData *data = static_cast<CardData *>(
     v8::Local<v8::External>::Cast(
-      GetPrivate(info.This(), Nan::New("data").ToLocalChecked())
+      Nan::GetPrivate(info.This(), Nan::New("data").ToLocalChecked()).ToLocalChecked()
     )->Value()
   );
 
@@ -68,8 +72,14 @@ inline CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &
   return data;
 }
 
+/* GuardTag a wrapper class for FreefareTag which can be used transperent and is also a scope guard for the connection to the card */
 class GuardTag {
   public:
+    /* Constructor. Guards the tag imideatly if active is true.
+     * Extracts the tag, reader and data from the info object.
+     * It also provides a retry function which executes a closure/lamda.
+     * On negative result an error is detected and the the internal error state of the card reader service is read.
+     * In case of communication error the closure is reexecuted n tries on other error an exeption is thrown. */
     GuardTag(const Nan::FunctionCallbackInfo<v8::Value> &info, bool active = true)
       : m_info(info), m_data(CardData_from_info(info)), m_reader(m_data->reader), m_active(false) {
       // We store the m_data->reader pointer as m_reader in case m_data is destroyed for some reason.
@@ -78,22 +88,27 @@ class GuardTag {
       }
     }
 
+    /* Destructor. Unguards the tag. */
     virtual ~GuardTag() {
       unguard();
     }
 
+    /* Returns the card data */
     CardData* data() {
       return m_data;
     }
 
+    /* Returns the reader which read the tag */
     ReaderData* reader() {
       return m_reader;
     }
 
+    /* The guard wrapps a FreefareTag and is implicite usable as one */
     operator FreefareTag() {
       return m_data->tag;
     }
 
+    /* Retry a closure/lambda n times and throw an error on failiur with pos_code and name */
     res_t retry(unsigned int pos_code, const char *name, std::function<res_t ()> try_f, int tries=3) {
       res_t ret_code = 0;
       unsigned int int_code = 0;
@@ -114,6 +129,7 @@ class GuardTag {
       return ret_code;
     }
 
+    /* Return the friendly name of the tag */
     const char *name() {
       if(m_data) {
         return freefare_get_tag_friendly_name(m_data->tag);
@@ -121,6 +137,8 @@ class GuardTag {
         return "UNKNOWN";
       }
     }
+
+    /* Returns the error number of the underlying service */
     unsigned int error() {
       if(m_data) {
         return freefare_internal_error(m_data->tag);
@@ -129,6 +147,7 @@ class GuardTag {
       }
     }
 
+    /* Returns the error string od the underlying service */
     const char *errorString() {
       if(m_data) {
         return freefare_strerror(m_data->tag);
@@ -137,6 +156,8 @@ class GuardTag {
       }
     }
 
+    /* Lock cardreader for exclusive access for threads inside this app and connect to card if possible
+     * Throws error on failiur */
     void guard() {
       if(!m_active) {
         int res = 0;
@@ -153,6 +174,8 @@ class GuardTag {
       m_active = true;
     }
 
+    /* Unlocks card reader after exclusive access and disconnects from card if possible
+     * Will allways success (Ignores errors) */
     void unguard() {
       if(m_active) {
         if(m_data) {

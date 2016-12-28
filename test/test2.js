@@ -1,6 +1,12 @@
 var mifare = require("bindings")("node_mifare");
 var ndef = require("ndef");
 
+function first(obj) {
+    for (var a in obj) {
+        return a;
+    }
+}
+
 var readers = mifare.getReader();
 var idx=0;
 
@@ -15,9 +21,10 @@ function delay(ms) {
     // d = null;  // Prevent memory leak?
   }
 }
-//readers["ACS ACR122U PICC Interface 00 00"].listen(function(err, reader, card) {
+reader = readers[first(readers)];
+reader.listen(function(err, reader, card) {
 //readers["ACS ACR122 0"].listen(function(err, reader, card) {
-readers["ACS ACR122U PICC Interface"].listen(function(err, reader, card) {
+//readers["ACS ACR122U PICC Interface"].listen(function(err, reader, card) {
   if(!card) {
     return;
   }

@@ -193,18 +193,25 @@ class GuardTag {
     bool m_active;
 };
 
+/** Extract tag data from info nodejs info object */
 CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
+/** Get tag information as an javascript object */
 void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
+/** Get master key information from tag as an javascript object */
 void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
+/** Return readable name of the card */
 void CardName(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
+/** Read version information from the card */
 void CardKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
+/** Free card data memory and destroy card */
 void CardFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
+/** Set AID for tag access. */
 void CardSetAid(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 void CardSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info);

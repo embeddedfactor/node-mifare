@@ -22,7 +22,7 @@ stage("Build") {
           done
         done
       '''
-      dir('dist') {
+      dir('precomp') {
         archiveArtifacts artifacts: '**', fingerprint: true
       }
     }
@@ -47,7 +47,7 @@ stage("Build") {
           done
         done
       '''
-      dir('dist') {
+      dir('precomp') {
         archiveArtifacts artifacts: '**', fingerprint: true
       }
     }
@@ -72,7 +72,7 @@ stage("Build") {
           done
         done
       '''
-      dir('dist') {
+      dir('precomp') {
         archiveArtifacts artifacts: '**', fingerprint: true
       }
     }

@@ -1,3 +1,5 @@
+#!groovy
+
 stage("Build") {
   parallel linux: {
     node('ArchLinux') {
@@ -5,11 +7,24 @@ stage("Build") {
       deleteDir()
       echo 'Checkout SCM'
       checkout scm
-      echo 'Build Debug via NPM'
-      npm install --debug
-      echo 'Build Release via NPM'
-      npm install
-      archiveArtifacts artifacts: 'build/**/node_mifare.node', fingerprint: true
+      sh '''#!/bin/bash
+        export OLDPATH="$PATH"
+        for node in /opt/nodejs/x64/* ; do
+          export PATH="${node}/bin:${OLDPATH}"
+          export VER=$(basename ${node})
+          for type in "Debug" "Release" ; do
+            if [ "$VER" = "v0.10.24" ] ; then
+              export PYTHON=python2
+            fi
+            npm install --${type,,}
+            mkdir -p precomp || true
+            cp -r build/${type}/node_mifare.node precomp/node_mifare-${VER}-linux-x64-${type,,}.node
+          done
+        done
+      '''
+      dir('dist') {
+        archiveArtifacts artifacts: '**', fingerprint: true
+      }
     }
   }, windows: {
     node('Windows-7-Dev') {
@@ -17,11 +32,24 @@ stage("Build") {
       deleteDir()
       echo 'Checkout SCM'
       checkout scm
-      echo 'Build Debug via NPM'
-      npm install --debug
-      echo 'Build Release via NPM'
-      npm install
-      archiveArtifacts artifacts: 'build/**/node_mifare.node', fingerprint: true
+      sh '''
+        export OLDPATH="$PATH"
+        for node in /c/nodejs/x64/* ; do
+          export PATH="${node}/bin:${OLDPATH}"
+          export VER=$(basename ${node})
+          for type in "Debug" "Release" ; do
+            #if [ "$VER" = "v0.10.24" ] ; then
+            #  export PYTHON=python2
+            #fi
+            npm install --${type,,}
+            mkdir -p precomp || true
+            cp -r build/${type}/node_mifare.node precomp/node_mifare-${VER}-linux-x64-${type,,}.node
+          done
+        done
+      '''
+      dir('dist') {
+        archiveArtifacts artifacts: '**', fingerprint: true
+      }
     }
   }, macos: {
     node('Yosemite-Dev') {
@@ -29,11 +57,24 @@ stage("Build") {
       deleteDir()
       echo 'Checkout SCM'
       checkout scm
-      echo 'Build Debug via NPM'
-      npm install --debug
-      echo 'Build Release via NPM'
-      npm install
-      archiveArtifacts artifacts: 'build/**/node_mifare.node', fingerprint: true
+      sh '''#!/bin/bash
+        export OLDPATH="$PATH"
+        for node in /opt/nodejs/x64/* ; do
+          export PATH="${node}/bin:${OLDPATH}"
+          export VER=$(basename ${node})
+          for type in "debug" "release" ; do
+            #if [ "$VER" = "v0.10.24" ] ; then
+            #  export PYTHON=python2
+            #fi
+            npm install --${type}
+            mkdir -p precomp || true
+            cp -r build/${type}/node_mifare.node precomp/node_mifare-${VER}-linux-x64-${type}.node
+          done
+        done
+      '''
+      dir('dist') {
+        archiveArtifacts artifacts: '**', fingerprint: true
+      }
     }
   }
 }

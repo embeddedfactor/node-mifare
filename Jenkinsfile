@@ -19,7 +19,7 @@ stage("Build") {
               export VER=$(basename ${node})
               npm install --release
               mkdir -p dist/${VER}/linux/${arch}/ || true
-              cp -r build/${type}/node_mifare.node dist/${VER}/linux/${arch}/
+              cp -r build/Release/node_mifare.node dist/${VER}/linux/${arch}/
               done
             done
           done
@@ -40,7 +40,7 @@ stage("Build") {
             export VER=$(basename ${node})
             npm install --release
             mkdir -p dist/${VER}/win32/${arch}/ || true
-            cp -r build/${type}/node_mifare.node dist/${VER}/win32/${arch}/
+            cp -r build/Release/node_mifare.node dist/${VER}/win32/${arch}/
             done
           done
         done
@@ -61,7 +61,7 @@ stage("Build") {
             export VER=$(basename ${node})
             npm install --release
             mkdir -p dist/${VER}/darwin/${arch}/ || true
-            cp -r build/${type}/node_mifare.node dist/${VER}/darwin/${arch}/
+            cp -r build/Release/node_mifare.node dist/${VER}/darwin/${arch}/
           done
         done
       '''

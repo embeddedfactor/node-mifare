@@ -17,7 +17,7 @@ stage("Build") {
               export PATH="${node}/bin:${OLDPATH}"
               export VER=$(basename ${node})
               for type in "Debug" "Release" ; do
-                if [ "$VER" = "v0.10.24" ] ; then
+                if [ "$VER" = "v0.10.26" ] ; then
                   export PYTHON=python2
                 fi
                 npm install --${type,,}
@@ -46,9 +46,6 @@ stage("Build") {
             export PATH="${node}:${OLDPATH}"
             export VER=$(basename ${node})
             for type in "Debug" "Release" ; do
-              #if [ "$VER" = "v0.10.24" ] ; then
-              #  export PYTHON=python2
-              #fi
               npm install --${type,,}
               mkdir -p dist || true
               cp -r build/${type}/node_mifare.node dist/node_mifare-${VER}-win-${arch}-${type,,}.node
@@ -74,9 +71,6 @@ stage("Build") {
             export PATH="${node}/bin:${OLDPATH}"
             export VER=$(basename ${node})
             for type in "debug" "release" ; do
-              #if [ "$VER" = "v0.10.24" ] ; then
-              #  export PYTHON=python2
-              #fi
               npm install --${type}
               mkdir -p dist || true
               cp -r build/${type}/node_mifare.node dist/node_mifare-${VER}-darwin-${arch}-${type}.node

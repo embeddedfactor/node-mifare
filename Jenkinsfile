@@ -38,7 +38,7 @@ stage("Build") {
         export OLDPATH="$PATH"
         for arch in "x64" "x86" ; do
           for node in /c/nodejs/${arch}/* ; do
-            export PATH="${node}/bin:${OLDPATH}"
+            export PATH="${node}:${OLDPATH}"
             export VER=$(basename ${node})
             for type in "Debug" "Release" ; do
               #if [ "$VER" = "v0.10.24" ] ; then

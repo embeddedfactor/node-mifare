@@ -11,6 +11,7 @@ stage("Build") {
         properties([pipelineTriggers([[$class: 'GitHubPushTrigger']])])
         checkout scm
         sh '''
+          export PYTHON=python2
           export OLDPATH="$PATH"
           for arch in "x64" "x86" ; do
             for node in /opt/nodejs/${arch}/* ; do

@@ -16,24 +16,16 @@ stage("Build") {
             for node in /opt/nodejs/${arch}/* ; do
               export PATH="${node}/bin:${OLDPATH}"
               export VER=$(basename ${node})
-              for type in "Debug" "Release" ; do
-                if [ "$VER" = "v0.10.26" ] ; then
-                  export PYTHON=python2
-                fi
-                npm install --${type,,}
-                mkdir -p dist || true
-                cp -r build/${type}/node_mifare.node dist/node_mifare-${VER}-linux-${arch}-${type,,}.node
+              npm install --release
+              mkdir -p dist/${VER}/linux/${arch}/ || true
+              cp -r build/${type}/node_mifare.node dist/${VER}/linux/${arch}/
               done
             done
           done
         '''
-        //dir('dist') {
-        //  archiveArtifacts artifacts: '**', fingerprint: true
-        //  stash includes: '**', name: 'linux'
-        //}
       }
     }
-  }, windows: {
+  }, win32: {
     node('Windows-7-Dev') {
       echo 'Cleanup Workspace'
       deleteDir()
@@ -45,18 +37,14 @@ stage("Build") {
           for node in /c/nodejs/${arch}/* ; do
             export PATH="${node}:${OLDPATH}"
             export VER=$(basename ${node})
-            for type in "Debug" "Release" ; do
-              npm install --${type,,}
-              mkdir -p dist || true
-              cp -r build/${type}/node_mifare.node dist/node_mifare-${VER}-win-${arch}-${type,,}.node
+            npm install --release
+            mkdir -p dist/${VER}/win32/${arch}/ || true
+            cp -r build/${type}/node_mifare.node dist/${VER}/win32/${arch}/
             done
           done
         done
       '''
-      dir('dist') {
-        //archiveArtifacts artifacts: '**', fingerprint: true
-        stash includes: '**', name: 'windows'
-      }
+      stash includes: 'dist/**', name: 'win32'
     }
   }, macos: {
     node('Yosemite-Dev') {
@@ -65,33 +53,30 @@ stage("Build") {
       echo 'Checkout SCM'
       checkout scm
       sh '''
-        export OLDPATH="$PATH"
+        export OLDPATH="${PATH}"
         for arch in "x64" "x86" ; do
           for node in /opt/nodejs/${arch}/* ; do
             export PATH="${node}/bin:${OLDPATH}"
             export VER=$(basename ${node})
-            for type in "debug" "release" ; do
-              npm install --${type}
-              mkdir -p dist || true
-              cp -r build/${type}/node_mifare.node dist/node_mifare-${VER}-darwin-${arch}-${type}.node
-            done
+            npm install --release
+            mkdir -p dist/${VER}/darwin/${arch}/ || true
+            cp -r build/${type}/node_mifare.node dist/${VER}/darwin/${arch}/
           done
         done
       '''
-      dir('dist') {
-        //archiveArtifacts artifacts: '**', fingerprint: true
-        stash includes: '**', name: 'macos'
-      }
+      stash includes: 'dist/**', name: 'darwin'
     }
   }
 }
 stage('Bundle') {
   node('ArchLinux') {
-    dir('node-mifare/dist') {
-      unstash 'windows'
-      unstash 'macos'
+    dir('node-mifare') {
+      unstash 'win32'
+      unstash 'darwin'
+      sh 'cp bindings.gyp bindings.gyp.done'
     }
-    sh "tar -czf node-mifare-${CHANGE_ID}-.dist.tar.gz"
-    archiveArtifacts artifacts: "node-mifare-${CHANGE_ID}-.dist.tar.gz", fingerprint: true
+    sh "tar --exclude='./binding.gyp' --exclude='./.git '--exclude='./node_modules' --exclude='./build' -czf node-mifare-${CHANGE_ID}-.dist.tar.gz"
+    sh "tar --exclude='./binding.gyp' --exclude='./.git '--exclude='./node_modules' --exclude='./build' --exclude='./src' --exclude='./test' --exclude='./docs' --exclude='./Jenkinsfile' -czf node-mifare-${CHANGE_ID}-.dist.min.tar.gz"
+    archiveArtifacts artifacts: "node-mifare-${CHANGE_ID}-*.tar.gz", fingerprint: true
   }
 }

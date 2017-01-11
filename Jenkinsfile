@@ -24,9 +24,9 @@ def builds = [:]
 
 for (int i = 0; i < platforms.size(); i++) {
   def platform = platforms[i].get('platform')
-  def host = platform[i].get('host')
-  def python = platform[i].get('python', 'python')
-  def arch = platform[i].get('arch', '"x64" "x86"')
+  def host = platforms[i].get('host')
+  def python = platforms[i].get('python', 'python')
+  def arch = platforms[i].get('arch', '"x64" "x86"')
   builds[platform] = {
     node(host) {
       env.PYTHON = python

@@ -46,7 +46,7 @@ for (int i = 0; i < platforms.size(); i++) {
               export PATH="${node}/bin:${OLDPATH}"
               export VER=$(basename ${node})
               npm install --release
-              mkdir -p dist/${VER}/linux/${arch}/ || true
+              mkdir -p dist/${VER}/${PLATFORM}/${arch}/ || true
               cp -r build/Release/node_mifare.node dist/${VER}/${PLATFORM}/${arch}/
             done
           done

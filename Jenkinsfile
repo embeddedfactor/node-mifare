@@ -42,8 +42,11 @@ for (int i = 0; i < platforms.size(); i++) {
 
         sh '''
           export OLDPATH="$PATH"
-          for arch in ${ARCH[@]} ; do
-            for node in /opt/nodejs/${arch}/* ; do
+          for arch in ${ARCH} ; do
+            for node in /c/nodejs/${arch}/* /opt/nodejs/${arch}/* ; do
+              if [ ! -d ${node} ] ; then
+                continue
+              fi
               export PATH="${node}/bin:${node}:${OLDPATH}"
               export VER=$(basename ${node})
               npm install --release

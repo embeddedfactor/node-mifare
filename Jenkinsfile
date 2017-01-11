@@ -1,7 +1,7 @@
 #!groovy
 
 def platforms = [
-  [platform: 'linux', host: 'ArchLinux', python: 'python2', arch:'"x64"' ],
+  [platform: 'linux', host: 'ArchLinux', python: 'python2', arch:'x64' ],
   [platform: 'win32', host: 'Windows-7-Dev'],
   [platform: 'darwin', host: 'Yosemite-Dev']
 ]
@@ -26,7 +26,7 @@ for (int i = 0; i < platforms.size(); i++) {
   def platform = platforms[i].get('platform')
   def host = platforms[i].get('host')
   def python = platforms[i].get('python', 'python')
-  def arch = platforms[i].get('arch', '"x64" "x86"')
+  def arch = platforms[i].get('arch', 'x64 x86')
   builds[platform] = {
     node(host) {
       env.PYTHON = python

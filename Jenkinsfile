@@ -74,8 +74,8 @@ stage('Bundle') {
       unstash 'darwin'
       sh 'cp binding.gyp binding.gyp.done'
     }
-    sh '''tar --exclude='node-mifare/binding.gyp' --exclude='node-mifare/.git '--exclude='node-mifare/node_modules' --exclude='node-mifare/build' -czf node-mifare-$(date "+%Y-%m-%d-%H-%M")-.dist.tar.gz node-mifare'''
-    sh '''tar --exclude='node-mifare/binding.gyp' --exclude='node-mifare/.git '--exclude='node-mifare/node_modules' --exclude='node-mifare/build' --exclude='node-mifare/src' --exclude='node-mifare/test' --exclude='node-mifare/docs' --exclude='node-mifare/Jenkinsfile' -czf node-mifare-$(date "+%Y-%m-%d-%H-%M")-.dist.min.tar.gz node-mifare'''
+    sh '''tar --exclude='node-mifare/binding.gyp' --exclude='node-mifare/.git' --exclude='node-mifare/node_modules' --exclude='node-mifare/build' -czf node-mifare-$(date "+%Y-%m-%d-%H-%M")-.dist.tar.gz node-mifare'''
+    sh '''tar --exclude='node-mifare/binding.gyp' --exclude='node-mifare/.git' --exclude='node-mifare/node_modules' --exclude='node-mifare/build' --exclude='node-mifare/src' --exclude='node-mifare/test' --exclude='node-mifare/docs' --exclude='node-mifare/Jenkinsfile' -czf node-mifare-$(date "+%Y-%m-%d-%H-%M")-.dist.min.tar.gz node-mifare'''
     archiveArtifacts artifacts: "node-mifare-*.tar.gz", fingerprint: true
   }
 }

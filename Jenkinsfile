@@ -29,17 +29,19 @@ for (int i = 0; i < platforms.size(); i++) {
   def arch = platforms[i].get('arch', 'x64 x86')
   builds[platform] = {
     node(host) {
-      env.PYTHON = python
-      env.PLATFORM = platform
-      env.ARCH = arch
-
       echo('Cleanup Workspace')
       deleteDir()
+
       sh 'mkdir -p node-mifare'
       dir('node-mifare') {
         echo 'Checkout SCM'
         checkout scm
+        env.PYTHON = python
+        env.PLATFORM = platform
+        env.ARCH = arch
+
         sh '''
+          env
           export OLDPATH="$PATH"
           for arch in ${ARCH} ; do
             for node in /opt/nodejs/${arch}/* ; do

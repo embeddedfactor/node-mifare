@@ -71,9 +71,8 @@ stage('Bundle') {
       unstash 'darwin'
       sh 'cp binding.gyp binding.gyp.done'
     }
-    env.DATETIME = sh(shell: 'date "+%Y-%m-%d-%H-%M"', returnStdout: true).trim()
-    sh "tar --exclude='${distexcludes.join("' --exclude='")}' -czf node-mifare-${DATETIME}.dist.tar.gz node-mifare"
-    sh "tar --exclude='${minexcludes.join("' --exclude='")}' -czf node-mifare-${DATETIME}.dist.min.tar.gz node-mifare"
+    sh "tar --exclude='${distexcludes.join("' --exclude='")}' -czf node-mifare-${BUILD_ID}.dist.tar.gz node-mifare"
+    sh "tar --exclude='${minexcludes.join("' --exclude='")}' -czf node-mifare-${BUILD_ID}.dist.min.tar.gz node-mifare"
     archiveArtifacts artifacts: "node-mifare-*.tar.gz", fingerprint: true
   }
 }

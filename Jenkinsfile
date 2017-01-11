@@ -72,10 +72,10 @@ stage('Bundle') {
     dir('node-mifare') {
       unstash 'win32'
       unstash 'darwin'
-      sh 'cp bindings.gyp bindings.gyp.done'
+      sh 'cp binding.gyp binding.gyp.done'
     }
-    sh "tar --exclude='./binding.gyp' --exclude='./.git '--exclude='./node_modules' --exclude='./build' -czf node-mifare-${CHANGE_ID}-.dist.tar.gz"
-    sh "tar --exclude='./binding.gyp' --exclude='./.git '--exclude='./node_modules' --exclude='./build' --exclude='./src' --exclude='./test' --exclude='./docs' --exclude='./Jenkinsfile' -czf node-mifare-${CHANGE_ID}-.dist.min.tar.gz"
+    sh "tar --exclude='node-mifare/binding.gyp' --exclude='node-mifare/.git '--exclude='node-mifare/node_modules' --exclude='node-mifare/build' -czf node-mifare-${CHANGE_ID}-.dist.tar.gz node-mifare"
+    sh "tar --exclude='node-mifare/binding.gyp' --exclude='node-mifare/.git '--exclude='node-mifare/node_modules' --exclude='node-mifare/build' --exclude='node-mifare/src' --exclude='node-mifare/test' --exclude='node-mifare/docs' --exclude='node-mifare/Jenkinsfile' -czf node-mifare-${CHANGE_ID}-.dist.min.tar.gz node-mifare"
     archiveArtifacts artifacts: "node-mifare-${CHANGE_ID}-*.tar.gz", fingerprint: true
   }
 }

@@ -42,9 +42,9 @@ for (int i = 0; i < platforms.size(); i++) {
 
         sh '''
           export OLDPATH="$PATH"
-          for arch in ${ARCH} ; do
+          for arch in ${ARCH[@]} ; do
             for node in /opt/nodejs/${arch}/* ; do
-              export PATH="${node}/bin:${OLDPATH}"
+              export PATH="${node}/bin:${node}:${OLDPATH}"
               export VER=$(basename ${node})
               npm install --release
               mkdir -p dist/${VER}/${PLATFORM}/${arch}/ || true

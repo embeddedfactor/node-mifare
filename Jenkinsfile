@@ -1,81 +1,76 @@
 #!groovy
 
-stage("Build") {
-  parallel linux: {
-    node('ArchLinux') {
-      echo 'Cleanup Workspace'
+def platforms = [
+  [platform: 'linux', host: 'ArchLinux', python: 'python2', arch:'"x64"' ],
+  [platform: 'win32', host: 'Windows-7-Dev']
+  [platform: 'darwin', host: 'Yosemite-Dev']
+]
+
+def distexcludes = [
+  'node-mifare/binding.gyp',
+  'node-mifare/.git',
+  'node-mifare/node_modules',
+  'node-mifare/build'
+]
+
+def minexcludes = distexcludes + [
+  'node-mifare/src',
+  'node-mifare/test',
+  'node-mifare/docs',
+  'node-mifare/Jenkinsfile'
+]
+
+def builds = [:]
+
+platforms.each { def obj ->
+  def platform = obj.get('platform')
+  def host = obj.get('host')
+  def python = obj.get('python', 'python')
+  def arch = obj.get('arch', '"x64" "x86"')
+  builds[platform] = {
+    node(host) {
+      env.PYTHON = python
+      env.PLATFORM = platform
+      env.ARCH = arch
+
+      echo('Cleanup Workspace')
       deleteDir()
       sh 'mkdir -p node-mifare'
       dir('node-mifare') {
         echo 'Checkout SCM'
-        properties([pipelineTriggers([[$class: 'GitHubPushTrigger']])])
         checkout scm
         sh '''
-          export PYTHON=python2
           export OLDPATH="$PATH"
-          for arch in "x64" ; do  # No Versions in "x86" ; do
+          for arch in ${ARCH} ; do
             for node in /opt/nodejs/${arch}/* ; do
               export PATH="${node}/bin:${OLDPATH}"
               export VER=$(basename ${node})
               npm install --release
               mkdir -p dist/${VER}/linux/${arch}/ || true
-              cp -r build/Release/node_mifare.node dist/${VER}/linux/${arch}/
+              cp -r build/Release/node_mifare.node dist/${VER}/${PLATFORM}/${arch}/
             done
           done
         '''
+        stash includes: 'dist/**', name: platform
       }
-    }
-  }, win32: {
-    node('Windows-7-Dev') {
-      echo 'Cleanup Workspace'
-      deleteDir()
-      echo 'Checkout SCM'
-      checkout scm
-      sh '''
-        export OLDPATH="$PATH"
-        for arch in "x64" "x86" ; do
-          for node in /c/nodejs/${arch}/* ; do
-            export PATH="${node}:${OLDPATH}"
-            export VER=$(basename ${node})
-            npm install --release
-            mkdir -p dist/${VER}/win32/${arch}/ || true
-            cp -r build/Release/node_mifare.node dist/${VER}/win32/${arch}/
-          done
-        done
-      '''
-      stash includes: 'dist/**', name: 'win32'
-    }
-  }, macos: {
-    node('Yosemite-Dev') {
-      echo 'Cleanup Workspace'
-      deleteDir()
-      echo 'Checkout SCM'
-      checkout scm
-      sh '''
-        export OLDPATH="${PATH}"
-        for arch in "x64" "x86" ; do
-          for node in /opt/nodejs/${arch}/* ; do
-            export PATH="${node}/bin:${OLDPATH}"
-            export VER=$(basename ${node})
-            npm install --release
-            mkdir -p dist/${VER}/darwin/${arch}/ || true
-            cp -r build/Release/node_mifare.node dist/${VER}/darwin/${arch}/
-          done
-        done
-      '''
-      stash includes: 'dist/**', name: 'darwin'
     }
   }
 }
+
+stage('Build') {
+  parallel builds
+}
+
 stage('Bundle') {
   node('ArchLinux') {
+    properties([pipelineTriggers([[$class: 'GitHubPushTrigger']])])
     dir('node-mifare') {
       unstash 'win32'
       unstash 'darwin'
       sh 'cp binding.gyp binding.gyp.done'
     }
-    sh '''tar --exclude='node-mifare/binding.gyp' --exclude='node-mifare/.git' --exclude='node-mifare/node_modules' --exclude='node-mifare/build' -czf node-mifare-$(date "+%Y-%m-%d-%H-%M")-.dist.tar.gz node-mifare'''
-    sh '''tar --exclude='node-mifare/binding.gyp' --exclude='node-mifare/.git' --exclude='node-mifare/node_modules' --exclude='node-mifare/build' --exclude='node-mifare/src' --exclude='node-mifare/test' --exclude='node-mifare/docs' --exclude='node-mifare/Jenkinsfile' -czf node-mifare-$(date "+%Y-%m-%d-%H-%M")-.dist.min.tar.gz node-mifare'''
+    sh "tar --exclude='${distexcludes.join("' --exclude='")}' -czf node-mifare-\$(date "+%Y-%m-%d-%H-%M").dist.tar.gz node-mifare"
+    sh "tar --exclude='${minexcludes.join("' --exclude='")}' -czf node-mifare-\$(date "+%Y-%m-%d-%H-%M").dist.min.tar.gz node-mifare"
     archiveArtifacts artifacts: "node-mifare-*.tar.gz", fingerprint: true
   }
 }

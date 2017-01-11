@@ -41,7 +41,6 @@ for (int i = 0; i < platforms.size(); i++) {
         env.ARCH = arch
 
         sh '''
-          env
           export OLDPATH="$PATH"
           for arch in ${ARCH} ; do
             for node in /opt/nodejs/${arch}/* ; do

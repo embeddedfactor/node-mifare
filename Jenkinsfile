@@ -2,7 +2,7 @@
 
 def platforms = [
   [platform: 'linux', host: 'ArchLinux', python: 'python2', arch:'"x64"' ],
-  [platform: 'win32', host: 'Windows-7-Dev']
+  [platform: 'win32', host: 'Windows-7-Dev'],
   [platform: 'darwin', host: 'Yosemite-Dev']
 ]
 

@@ -15,7 +15,7 @@ var fs = require('fs')
       , compiled: process.env.NODE_BINDINGS_COMPILED_DIR || 'compiled'
       , platform: process.platform
       , arch: process.arch
-      , version: process.versions.node
+      , version: process.version
       , bindings: 'bindings.node'
       , try: [
           // node-gyp's linked version in the "build" dir

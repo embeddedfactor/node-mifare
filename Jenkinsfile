@@ -13,14 +13,13 @@ stage("Build") {
         sh '''
           export PYTHON=python2
           export OLDPATH="$PATH"
-          for arch in "x64" "x86" ; do
+          for arch in "x64" ; do  # No Versions in "x86" ; do
             for node in /opt/nodejs/${arch}/* ; do
               export PATH="${node}/bin:${OLDPATH}"
               export VER=$(basename ${node})
               npm install --release
               mkdir -p dist/${VER}/linux/${arch}/ || true
               cp -r build/Release/node_mifare.node dist/${VER}/linux/${arch}/
-              done
             done
           done
         '''
@@ -41,7 +40,6 @@ stage("Build") {
             npm install --release
             mkdir -p dist/${VER}/win32/${arch}/ || true
             cp -r build/Release/node_mifare.node dist/${VER}/win32/${arch}/
-            done
           done
         done
       '''

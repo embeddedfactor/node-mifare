@@ -1,4 +1,4 @@
-var mifare = require("bindings")("node_mifare");
+var mifare = require("../index.js");
 var ndef = require("ndef");
 
 function first(obj) {

@@ -46,7 +46,9 @@ class CardData {
         free(aid);
         aid = NULL;
       }
-      freefare_free_tags(tags.get());
+      if(tag) {
+        freefare_free_tags(tags.get());
+      }
       tag = NULL;
       tags = NULL;
     }
@@ -178,7 +180,7 @@ class GuardTag {
      * Will allways success (Ignores errors) */
     void unguard() {
       if(m_active) {
-        if(m_data) {
+        if(m_data&&m_data->tag) {
           mifare_desfire_disconnect(m_data->tag);
         }
         uv_mutex_unlock(&m_reader->mDevice);

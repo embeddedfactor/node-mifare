@@ -67,7 +67,7 @@ for (int i = 0; i < platforms.size(); i++) {
           export npm_config_runtime=electron
           export npm_config_build_from_source=true
           export OLDPATH="$PATH"
-          for arch in x64 ia32 ; do
+          for arch in x64 ; do
             export NODEJS_VER=$(ls -1d /c/nodejs/${arch}/*/ /opt/nodejs/${arch}/*/ 2>/dev/null | tail -n1)
             if [ ! -d ${NODEJS_VER} ] ; then
               continue
@@ -77,7 +77,7 @@ for (int i = 0; i < platforms.size(); i++) {
               export npm_config_target=${ELECTRON_VER}
               export npm_config_arch=${arch}
               export npm_config_target_arch=${arch}
-              HOME=~/.electron-gyp-${ELECTRON_VER} npm install --release
+              HOME=~/.electron-gyp npm install --release
               mkdir -p dist/electron/${ELECTRON_VER}/${PLATFORM}/${arch}/ || true
               cp -r build/Release/node_mifare.node dist/electron/${ELECTRON_VER}/${PLATFORM}/${arch}/
             done

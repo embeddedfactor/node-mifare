@@ -110,6 +110,6 @@ stage('Bundle') {
     sh "tar --exclude='${distexcludes.join("' --exclude='")}' -czf node-mifare-${BUILD_ID}.dist.tar.gz node-mifare"
     sh "tar --exclude='${minexcludes.join("' --exclude='")}' -czf node-mifare-${BUILD_ID}.dist.min.tar.gz node-mifare"
     archiveArtifacts artifacts: "node-mifare-*.tar.gz", fingerprint: true
-    step([$class: 'WarningsPublisher', canComputeNew: false, canResolveRelativePaths: false, canRunOnFailed: true, defaultEncoding: '', excludePattern: '', healthy: '', includePattern: '', messagesPattern: '', unHealthy: ''])
+    //step([$class: 'WarningsPublisher', canComputeNew: false, canResolveRelativePaths: false, canRunOnFailed: true, defaultEncoding: '', excludePattern: '', healthy: '', includePattern: '', messagesPattern: '', unHealthy: ''])
   }
 }

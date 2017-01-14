@@ -69,6 +69,9 @@ for (int i = 0; i < platforms.size(); i++) {
           export OLDPATH="$PATH"
           for arch in x64 ia32 ; do
             export NODEJS_VER=$(ls -1d /c/nodejs/${arch}/*/ /opt/nodejs/${arch}/*/ 2>/dev/null | tail -n1)
+            if [ ! -d ${NODEJS_VER} ] ; then
+              continue
+            fi
             export PATH="${NODEJS_VER}/bin:${NODEJS_VER}:${OLDPATH}"
             for ELECTRON_VER in "1.4.14" ; do
               export npm_config_target=${ELECTRON_VER}

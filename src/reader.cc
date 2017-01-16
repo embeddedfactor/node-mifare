@@ -202,14 +202,6 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
       data->state.dwCurrentState = event;
       if(event & SCARD_STATE_IGNORE) {
         status = Nan::New("ignore").ToLocalChecked();
-      } else if(event & SCARD_STATE_UNKNOWN) {
-        status = Nan::New("unknown").ToLocalChecked();
-      } else if(event & SCARD_STATE_UNAVAILABLE) {
-        status = Nan::New("unavailable").ToLocalChecked();
-      } else if(event & SCARD_STATE_EMPTY) {
-        status = Nan::New("empty").ToLocalChecked();
-      } else if(event & SCARD_STATE_PRESENT) {
-        status = Nan::New("present").ToLocalChecked();
       } else if(event & SCARD_STATE_ATRMATCH) {
         status = Nan::New("atrmatch").ToLocalChecked();
       } else if(event & SCARD_STATE_EXCLUSIVE) {
@@ -218,6 +210,14 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         status = Nan::New("inuse").ToLocalChecked();
       } else if(event & SCARD_STATE_MUTE) {
         status = Nan::New("mute").ToLocalChecked();
+      } else if(event & SCARD_STATE_UNKNOWN) {
+        status = Nan::New("unknown").ToLocalChecked();
+      } else if(event & SCARD_STATE_UNAVAILABLE) {
+        status = Nan::New("unavailable").ToLocalChecked();
+      } else if(event & SCARD_STATE_EMPTY) {
+        status = Nan::New("empty").ToLocalChecked();
+      } else if(event & SCARD_STATE_PRESENT) {
+        status = Nan::New("present").ToLocalChecked();
       }
 
       // Prepare readerObject event

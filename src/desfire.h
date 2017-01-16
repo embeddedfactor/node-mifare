@@ -176,7 +176,7 @@ class GuardTag {
               continue;
             } else if(res) {
               uv_mutex_unlock(&m_reader->mDevice);
-              throw errorResult(m_info, 0x12303, "Can't conntect to Mifare DESFire target.", error());
+              throw errorResult(m_info, 0x12303, errorString(), error(), "Can't conntect to Mifare DESFire target.");
               break;
             } else {
               break;

@@ -47,7 +47,7 @@ class CardData {
         aid = NULL;
       }
       if(tag) {
-        freefare_free_tags(tags.get());
+        freefare_free_tags(tags);
       }
       tag = NULL;
       tags.reset();
@@ -55,7 +55,9 @@ class CardData {
 
     ReaderData *reader;
     FreefareTag tag;
-    std::shared_ptr<FreefareTag> tags;
+    // The shared pointer makes problems. tags is not an C++ object and needs an special destructor
+    //std::shared_ptr<FreefareTag> tags;
+    FreefareTag *tags;
     MifareDESFireKey key;
     MifareDESFireAID aid;
 };

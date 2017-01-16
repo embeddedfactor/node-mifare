@@ -50,7 +50,7 @@ class CardData {
         freefare_free_tags(tags.get());
       }
       tag = NULL;
-      tags = NULL;
+      tags.reset();
     }
 
     ReaderData *reader;
@@ -165,10 +165,20 @@ class GuardTag {
         int res = 0;
         uv_mutex_lock(  &m_reader->mDevice);
         if(m_data) {
-          res = mifare_desfire_connect(m_data->tag);
-          if(res) {
-            uv_mutex_unlock(&m_reader->mDevice);
-            throw errorResult(m_info, 0x12303, "Can't conntect to Mifare DESFire target.", error());
+          while(1) {
+            res = mifare_desfire_connect(m_data->tag);
+            if(res && error() == 0x8010000B) {
+              // SCARD_E_SHARING_VIOLATION
+              // The smart card cannot be accessed because of other connections outstanding
+              mifare_sleep();
+              continue;
+            } else if(res) {
+              uv_mutex_unlock(&m_reader->mDevice);
+              throw errorResult(m_info, 0x12303, "Can't conntect to Mifare DESFire target.", error());
+              break;
+            } else {
+              break;
+            }
           }
         }
         mifare_sleep();

@@ -1,23 +1,26 @@
 #!groovy
 
+def project = "node-mifare"
+def binary = "node_mifare.node"
+
 def platforms = [
-  [platform: 'linux', host: 'ArchLinux', python: 'python2' ],
+  [platform: 'linux', host: 'ArchLinux', python: 'python2', bear: 'bear'],
   [platform: 'win32', host: 'Windows-7-Dev'],
   [platform: 'darwin', host: 'Yosemite-Dev']
 ]
 
 def distexcludes = [
-  'node-mifare/binding.gyp',
-  'node-mifare/.git',
-  'node-mifare/node_modules',
-  'node-mifare/build'
+  "${project}/binding.gyp",
+  "${project}/.git",
+  "${project}/node_modules",
+  "${project}/build"
 ]
 
 def minexcludes = distexcludes + [
-  'node-mifare/src',
-  'node-mifare/test',
-  'node-mifare/docs',
-  'node-mifare/Jenkinsfile'
+  "${project}/src",
+  "${project}/test",
+  "${project}/docs",
+  "${project}/Jenkinsfile"
 ]
 
 def nodejs_builds = [:]
@@ -27,17 +30,20 @@ for (int i = 0; i < platforms.size(); i++) {
   def platform = platforms[i].get('platform')
   def host = platforms[i].get('host')
   def python = platforms[i].get('python', 'python')
+  def bear = platforms[i].get('bear', '')
   nodejs_builds[platform] = {
     node(host) {
       echo('Cleanup Workspace')
       deleteDir()
 
-      sh 'mkdir -p node-mifare'
-      dir('node-mifare') {
+      sh "mkdir -p ${project}"
+      dir(project) {
         echo 'Checkout SCM'
         checkout scm
         env.PYTHON = python
         env.PLATFORM = platform
+        env.BINARY = binary
+        env.BEAR = bear
         sh '''
           export OLDPATH="$PATH"
           for arch in x64 ia32 ; do
@@ -47,9 +53,9 @@ for (int i = 0; i < platforms.size(); i++) {
               fi
               export PATH="${node}/bin:${node}:${OLDPATH}"
               export VER=$(basename ${node})
-              npm install --release
+              V=1 ${BEAR} npm install --release
               mkdir -p dist/node/${VER}/${PLATFORM}/${arch}/ || true
-              cp -r build/Release/node_mifare.node dist/node/${VER}/${PLATFORM}/${arch}/
+              cp -r build/Release/${BINARY} dist/node/${VER}/${PLATFORM}/${arch}/
             done
           done
         '''
@@ -59,9 +65,10 @@ for (int i = 0; i < platforms.size(); i++) {
   }
   electron_builds[platform] = {
     node(host) {
-      dir('node-mifare') {
+      dir(project) {
         env.PYTHON = python
         env.PLATFORM = platform
+        env.BINARY = binary
         sh '''
           export npm_config_disturl=https://atom.io/download/electron
           export npm_config_runtime=electron
@@ -79,7 +86,7 @@ for (int i = 0; i < platforms.size(); i++) {
               export npm_config_target_arch=${arch}
               HOME=~/.electron-gyp npm install --release
               mkdir -p dist/electron/${ELECTRON_VER}/${PLATFORM}/${arch}/ || true
-              cp -r build/Release/node_mifare.node dist/electron/${ELECTRON_VER}/${PLATFORM}/${arch}/
+              cp -r build/Release/${BINARY} dist/electron/${ELECTRON_VER}/${PLATFORM}/${arch}/
             done
           done
         '''
@@ -100,16 +107,27 @@ stage('Build electron') {
 stage('Bundle') {
   node('ArchLinux') {
     properties([pipelineTriggers([[$class: 'GitHubPushTrigger']])])
-    dir('node-mifare') {
+    dir(project) {
       unstash 'nodejs_win32'
       unstash 'nodejs_darwin'
       unstash 'electron_win32'
       unstash 'electron_darwin'
       sh 'cp binding.gyp binding.gyp.done'
+      sh 'oclint-json-compilation-database'
     }
-    sh "tar --exclude='${distexcludes.join("' --exclude='")}' -czf node-mifare-${BUILD_ID}.dist.tar.gz node-mifare"
-    sh "tar --exclude='${minexcludes.join("' --exclude='")}' -czf node-mifare-${BUILD_ID}.dist.min.tar.gz node-mifare"
-    archiveArtifacts artifacts: "node-mifare-*.tar.gz", fingerprint: true
-    //step([$class: 'WarningsPublisher', canComputeNew: false, canResolveRelativePaths: false, canRunOnFailed: true, defaultEncoding: '', excludePattern: '', healthy: '', includePattern: '', messagesPattern: '', unHealthy: ''])
+    sh "tar --exclude='${distexcludes.join("' --exclude='")}' -czf ${project}-${BUILD_ID}.dist.tar.gz ${project}"
+    sh "tar --exclude='${minexcludes.join("' --exclude='")}' -czf ${project}-${BUILD_ID}.dist.min.tar.gz ${project}"
+    archiveArtifacts artifacts: "${project}-*.tar.gz", fingerprint: true
+    stash includes: '**', name: 'all'
+  }
+}
+
+stage('Linter') {
+  node('master') {
+    unstash 'all'
+    dir(project) {
+      step([$class: 'PmdPublisher', canComputeNew: false, canRunOnFailed: true, defaultEncoding: '', healthy: '', pattern: '**/build/oclint.xml', unHealthy: ''])
+      step([$class: 'WarningsPublisher', canComputeNew: false, canRunOnFailed: true, consoleParsers: [[parserName: 'GNU Make + GNU C Compiler (gcc)']], defaultEncoding: '', excludePattern: '', healthy: '', includePattern: '', messagesPattern: '', unHealthy: ''])
+    }
   }
 }

@@ -50,7 +50,7 @@ class CardData {
         freefare_free_tags(tags);
       }
       tag = NULL;
-      tags.reset();
+      tags = NULL;
     }
 
     ReaderData *reader;

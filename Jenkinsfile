@@ -4,7 +4,7 @@ def project = "node-mifare"
 def binary = "node_mifare.node"
 
 def platforms = [
-  [platform: 'linux', host: 'ArchLinux', python: 'python2', bear: 'bear'],
+  [platform: 'linux', host: 'trustydev', bear: 'bear'],
   [platform: 'win32', host: 'Windows-7-Dev'],
   [platform: 'darwin', host: 'Yosemite-Dev']
 ]

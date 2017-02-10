@@ -113,21 +113,22 @@ stage('Bundle') {
       unstash 'electron_win32'
       unstash 'electron_darwin'
       sh 'cp binding.gyp binding.gyp.done'
-      sh 'oclint-json-compilation-database'
+      //sh 'oclint-json-compilation-database'
     }
     sh "tar --exclude='${distexcludes.join("' --exclude='")}' -czf ${project}.dist.tar.gz ${project}"
     sh "tar --exclude='${minexcludes.join("' --exclude='")}' -czf ${project}.dist.min.tar.gz ${project}"
     archiveArtifacts artifacts: "${project}*.tar.gz", fingerprint: true
-    stash includes: '**', name: 'all'
+    //stash includes: '**', name: 'all'
   }
 }
-
+/*
 stage('Linter') {
   node('master') {
     unstash 'all'
     dir(project) {
-      step([$class: 'PmdPublisher', canComputeNew: false, canRunOnFailed: true, defaultEncoding: '', healthy: '', pattern: '**/build/oclint.xml', unHealthy: ''])
-      step([$class: 'WarningsPublisher', canComputeNew: false, canRunOnFailed: true, consoleParsers: [[parserName: 'GNU Make + GNU C Compiler (gcc)']], defaultEncoding: '', excludePattern: '', healthy: '', includePattern: '', messagesPattern: '', unHealthy: ''])
+      //step([$class: 'PmdPublisher', canComputeNew: false, canRunOnFailed: true, defaultEncoding: '', healthy: '', pattern: '**/build/oclint.xml', unHealthy: ''])
+      //step([$class: 'WarningsPublisher', canComputeNew: false, canRunOnFailed: true, consoleParsers: [[parserName: 'GNU Make + GNU C Compiler (gcc)']], defaultEncoding: '', excludePattern: '', healthy: '', includePattern: '', messagesPattern: '', unHealthy: ''])
     }
   }
 }
+*/

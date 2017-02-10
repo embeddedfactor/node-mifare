@@ -52,6 +52,7 @@ function bindings (opts) {
 
   if('electron' in process.versions) {
     opts.node = 'electron';
+    opts.version = process.versions.electron;
   }
 
   // Ensure the given bindings name ends with .node

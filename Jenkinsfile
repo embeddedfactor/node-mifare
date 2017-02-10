@@ -105,7 +105,7 @@ stage('Build electron') {
 }
 
 stage('Bundle') {
-  node('ArchLinux') {
+  node('trustydev') {
     properties([pipelineTriggers([[$class: 'GitHubPushTrigger']])])
     dir(project) {
       unstash 'nodejs_win32'
@@ -115,9 +115,9 @@ stage('Bundle') {
       sh 'cp binding.gyp binding.gyp.done'
       sh 'oclint-json-compilation-database'
     }
-    sh "tar --exclude='${distexcludes.join("' --exclude='")}' -czf ${project}-${BUILD_ID}.dist.tar.gz ${project}"
-    sh "tar --exclude='${minexcludes.join("' --exclude='")}' -czf ${project}-${BUILD_ID}.dist.min.tar.gz ${project}"
-    archiveArtifacts artifacts: "${project}-*.tar.gz", fingerprint: true
+    sh "tar --exclude='${distexcludes.join("' --exclude='")}' -czf ${project}.dist.tar.gz ${project}"
+    sh "tar --exclude='${minexcludes.join("' --exclude='")}' -czf ${project}.dist.min.tar.gz ${project}"
+    archiveArtifacts artifacts: "${project}*.tar.gz", fingerprint: true
     stash includes: '**', name: 'all'
   }
 }

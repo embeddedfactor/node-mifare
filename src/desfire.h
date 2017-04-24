@@ -123,7 +123,11 @@ class GuardTag {
         if(ret_code>=0) {
           return ret_code;
         } else { // ERROR ret is negative
-          if(int_code==0x80100010) { // CMD ERROR
+          if(int_code==28) {
+            // ILLEGAL_COMMAND: Propably due to to short time for initialization
+            continue;
+          } else if(int_code==0x80100010) {
+            // CMD ERROR: Propably due to to short time for initialization
             continue;
           } else {
             throw errorResult(m_info, pos_code, errorString(), int_code, name);

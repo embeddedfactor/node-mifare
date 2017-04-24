@@ -80,7 +80,7 @@ for (int i = 0; i < platforms.size(); i++) {
               continue
             fi
             export PATH="${NODEJS_VER}/bin:${NODEJS_VER}:${OLDPATH}"
-            for ELECTRON_VER in 1.6.5" ; do
+            for ELECTRON_VER in "1.6.5" ; do
               export npm_config_target=${ELECTRON_VER}
               export npm_config_arch=${arch}
               export npm_config_target_arch=${arch}

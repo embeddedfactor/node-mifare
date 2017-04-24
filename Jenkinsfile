@@ -6,7 +6,7 @@ def binary = "node_mifare.node"
 def platforms = [
   [platform: 'linux', host: 'trustydev', bear: 'bear'],
   [platform: 'win32', host: 'Windows-7-Dev'],
-  [platform: 'darwin', host: 'Yosemite-Dev']
+  [platform: 'darwin', host: 'macossierradev']
 ]
 
 def distexcludes = [

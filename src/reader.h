@@ -87,6 +87,8 @@ struct ReaderData {
 };
 
 ReaderData *ReaderData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
+void callCallback(ReaderData *data, v8::Local<v8::Value> err, v8::Local<v8::Value> reader, v8::Local<v8::Value> card);
+
 #if NODE_VERSION_AT_LEAST(0, 12, 0)
 void reader_timer_callback(uv_timer_t *handle);
 #else

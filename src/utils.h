@@ -28,8 +28,7 @@
 #if !defined(_NOEXCEPT)
 #define _NOEXCEPT throw()
 #endif
-
-/**
+/*
  * Standard exception type for this node addon.
  * Can only be thrown and catched in this addon.
  * Globaly try/catch is disabled in nodejs.

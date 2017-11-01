@@ -15,6 +15,12 @@ ReaderData *ReaderData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &inf
   );
 }
 
+void callCalback(ReaderData *data, v8::Local<v8::Value> err, v8::Local<v8::Value> reader, v8::Local<v8::Value> card) {
+  const unsigned argc = 3;
+  v8::Local<v8::Value> argv[argc] = { err, reader, card };
+  Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);
+}
+
 
 #if defined(USE_LIBNFC)
 
@@ -98,23 +104,7 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
       if(freefare_get_tag_type(t) == DESFIRE) {
         tags_used = true;
 
-        CardData *cardData = new CardData(data, tags);
-        cardData->tag = t;
-        v8::Local<v8::Object> card = Nan::New<v8::Object>();
-        Nan::Set(card, Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
-        Nan::SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
-
-        Nan::SetMethod(card, "info", CardInfo);
-        Nan::SetMethod(card, "masterKeyInfo", CardMasterKeyInfo);
-        Nan::SetMethod(card, "keyVersion", CardKeyVersion);
-        Nan::SetMethod(card, "freeMemory", CardFreeMemory);
-        Nan::SetMethod(card, "setKey", CardSetKey);
-        Nan::SetMethod(card, "setAid", CardSetAid);
-        Nan::SetMethod(card, "format", CardFormat);
-        Nan::SetMethod(card, "createNdef", CardCreateNdef);
-        Nan::SetMethod(card, "readNdef", CardReadNdef);
-        Nan::SetMethod(card, "writeNdef", CardWriteNdef);
-        Nan::SetMethod(card, "free", CardFree);
+        v8::Local<v8::Object> card = CardCreate(data, tags, t);
 
         const unsigned argc = 3;
         Nan::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, card };
@@ -161,22 +151,12 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
       status = Nan::New("error");
     } else if(err == NFC_ECHIP){
       status = Nan::New("brokenchip");
-    }
-    else
-    {
+    } else {
       status = make_status("unknown");
     }
+    /* Came here because err changed. So we call the callback function */
     reader->Set(Nan::New("status"), status.ToLocalChecked());
-    /*
-    Came here because err changed. So we call the callback function
-    */
-    const unsigned argc = 3;
-    Nan::Local<Value> argv[argc] = {
-      Nan::Local<v8::Value>::New(Nan::Undefined()),
-      Nan::Local<v8::Value>::New(reader),
-      Nan::Local<v8::Value>::New(Nan::Undefined())
-    };
-    data->callback->Call(Nan::GetCurrentContext()->Global(), argc, argv);
+    callCallback(data, Nan::Undefined(), reader, Nan::Undefined());
   }
   return;
 }
@@ -230,49 +210,20 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         // XXX: With PCSC tags is always length 2 with {tag, NULL} we assume this is allways the case here!!!!
         for(int i = 0; (!res) && tags && tags[i]; i++) {
           if(tags[i] && freefare_get_tag_type(tags[i]) == MIFARE_DESFIRE) {
-
-            CardData *cardData = new CardData(data, tags);
-            cardData->tag = tags[i];
-            v8::Local<v8::Object> card = Nan::New<v8::Object>();
-            Nan::Set(card, Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
-            Nan::SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
-
-            Nan::SetMethod(card, "info", CardInfo);
-            Nan::SetMethod(card, "masterKeyInfo", CardMasterKeyInfo);
-            Nan::SetMethod(card, "keyVersion", CardKeyVersion);
-            Nan::SetMethod(card, "freeMemory", CardFreeMemory);
-            Nan::SetMethod(card, "setKey", CardSetKey);
-            Nan::SetMethod(card, "setAid", CardSetAid);
-            Nan::SetMethod(card, "format", CardFormat);
-            Nan::SetMethod(card, "createNdef", CardCreateNdef);
-            Nan::SetMethod(card, "readNdef", CardReadNdef);
-            Nan::SetMethod(card, "writeNdef", CardWriteNdef);
-            Nan::SetMethod(card, "free", CardFree);
-
-            const unsigned argc = 3;
-            v8::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, card };
-            Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);
-
-            //delete cardData;
+            v8::Local<v8::Object> card = CardCreate(data, tags, tags[i]);
+            callCallback(data, Nan::Undefined(), reader, card);
           }
         }
-        //freefare_free_tags(tags);
       } else {
-        const unsigned argc = 3;
-        v8::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, Nan::Undefined() };
-        Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);
+        callCallback(data, Nan::Undefined(), reader, Nan::Undefined());
       }
     }
   } else if(static_cast<unsigned int>(res) == SCARD_E_TIMEOUT) {
       reader->Set(Nan::New("status").ToLocalChecked(), Nan::New("timeout").ToLocalChecked());
-      const unsigned argc = 3;
-      v8::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, Nan::Undefined() };
-      Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);
+      callCallback(data, Nan::Undefined(), reader, Nan::Undefined());
   } else {
       reader->Set(Nan::New("status").ToLocalChecked(), Nan::New("unknown").ToLocalChecked());
-      const unsigned argc = 3;
-      v8::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, Nan::Undefined() };
-      Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);
+      callCallback(data, Nan::Undefined(), reader, Nan::Undefined());
   }
 }
 #endif // USE_LIBNFC

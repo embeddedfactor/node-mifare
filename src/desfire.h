@@ -193,6 +193,8 @@ class GuardTag {
     bool m_active;
 };
 
+v8::Local<v8::Object> CardCreate(ReaderData *reader, FreefareTag *tagList, FreefareTag activeTag);
+
 /** Extract tag data from info nodejs info object */
 CardData *CardData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
 

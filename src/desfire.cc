@@ -4,6 +4,27 @@
 #include "desfire.h"
 #include "utils.h"
 
+v8::Local<v8::Object> CardCreate(ReaderData *reader, FreefareTag *tagList, FreefareTag activeTag) {
+  CardData *cardData = new CardData(reader, tagList);
+  cardData->tag = activeTag;
+  v8::Local<v8::Object> card = Nan::New<v8::Object>();
+  Nan::Set(card, Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
+  Nan::SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
+
+  Nan::SetMethod(card, "info", CardInfo);
+  Nan::SetMethod(card, "masterKeyInfo", CardMasterKeyInfo);
+  Nan::SetMethod(card, "keyVersion", CardKeyVersion);
+  Nan::SetMethod(card, "freeMemory", CardFreeMemory);
+  Nan::SetMethod(card, "setKey", CardSetKey);
+  Nan::SetMethod(card, "setAid", CardSetAid);
+  Nan::SetMethod(card, "format", CardFormat);
+  Nan::SetMethod(card, "createNdef", CardCreateNdef);
+  Nan::SetMethod(card, "readNdef", CardReadNdef);
+  Nan::SetMethod(card, "writeNdef", CardWriteNdef);
+  Nan::SetMethod(card, "free", CardFree);
+  return card;
+}
+
 void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
   try {
     v8::Local<v8::Object> card = Nan::New<v8::Object>();

@@ -46,14 +46,18 @@ class CardData {
         free(aid);
         aid = NULL;
       }
-      freefare_free_tags(tags.get());
+      if(tag) {
+        freefare_free_tags(tags);
+      }
       tag = NULL;
       tags = NULL;
     }
 
     ReaderData *reader;
     FreefareTag tag;
-    std::shared_ptr<FreefareTag> tags;
+    // The shared pointer makes problems. tags is not an C++ object and needs an special destructor
+    //std::shared_ptr<FreefareTag> tags;
+    FreefareTag *tags;
     MifareDESFireKey key;
     MifareDESFireAID aid;
 };
@@ -119,7 +123,11 @@ class GuardTag {
         if(ret_code>=0) {
           return ret_code;
         } else { // ERROR ret is negative
-          if(int_code==0x80100010) { // CMD ERROR
+          if(int_code==28) {
+            // ILLEGAL_COMMAND: Propably due to to short time for initialization
+            continue;
+          } else if(int_code==0x80100010) {
+            // CMD ERROR: Propably due to to short time for initialization
             continue;
           } else {
             throw errorResult(m_info, pos_code, errorString(), int_code, name);
@@ -163,10 +171,20 @@ class GuardTag {
         int res = 0;
         uv_mutex_lock(  &m_reader->mDevice);
         if(m_data) {
-          res = mifare_desfire_connect(m_data->tag);
-          if(res) {
-            uv_mutex_unlock(&m_reader->mDevice);
-            throw errorResult(m_info, 0x12303, "Can't conntect to Mifare DESFire target.", error());
+          while(1) {
+            res = mifare_desfire_connect(m_data->tag);
+            if(res && error() == 0x8010000B) {
+              // SCARD_E_SHARING_VIOLATION
+              // The smart card cannot be accessed because of other connections outstanding
+              mifare_sleep();
+              continue;
+            } else if(res) {
+              uv_mutex_unlock(&m_reader->mDevice);
+              throw errorResult(m_info, 0x12303, errorString(), error(), "Can't conntect to Mifare DESFire target.");
+              break;
+            } else {
+              break;
+            }
           }
         }
         mifare_sleep();
@@ -178,7 +196,7 @@ class GuardTag {
      * Will allways success (Ignores errors) */
     void unguard() {
       if(m_active) {
-        if(m_data) {
+        if(m_data&&m_data->tag) {
           mifare_desfire_disconnect(m_data->tag);
         }
         uv_mutex_unlock(&m_reader->mDevice);

@@ -15,7 +15,7 @@ ReaderData *ReaderData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &inf
   );
 }
 
-void callCalback(ReaderData *data, v8::Local<v8::Value> err, v8::Local<v8::Value> reader, v8::Local<v8::Value> card) {
+void callCallback(ReaderData *data, v8::Local<v8::Value> err, v8::Local<v8::Value> reader, v8::Local<v8::Value> card) {
   const unsigned argc = 3;
   v8::Local<v8::Value> argv[argc] = { err, reader, card };
   Nan::Call(Nan::New<v8::Function>(data->callback), Nan::GetCurrentContext()->Global(), argc, argv);

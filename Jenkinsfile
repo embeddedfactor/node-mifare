@@ -11,9 +11,11 @@ def platforms = [
 
 def distexcludes = [
   "${project}/binding.gyp",
+  "${project}/binding.gyp.done",
   "${project}/.git",
   "${project}/node_modules",
-  "${project}/build"
+  "${project}/build",
+  "${project}/compile_commands.json"
 ]
 
 def minexcludes = distexcludes + [
@@ -80,11 +82,11 @@ for (int i = 0; i < platforms.size(); i++) {
               continue
             fi
             export PATH="${NODEJS_VER}/bin:${NODEJS_VER}:${OLDPATH}"
-            for ELECTRON_VER in "1.7.9" ; do
-              export npm_config_target=${ELECTRON_VER}
+            for ELECTRON_VER in "1.7.9|54" ; do
+              export npm_config_target=${ELECTRON_VER%%|*}
               export npm_config_arch=${arch}
               export npm_config_target_arch=${arch}
-              export VER="$(node -p process.versions.modules)"
+              export VER=${ELECTRON_VER#*|}
               HOME=~/.electron-gyp npm install --release
               mkdir -p dist/${VER}/${PLATFORM}/${arch}/ || true
               cp -r build/Release/${BINARY} dist/${VER}/${PLATFORM}/${arch}/

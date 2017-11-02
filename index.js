@@ -50,9 +50,11 @@ function bindings (opts) {
     opts.module_root = __dirname;
   }
 
-  if('electron' in process.versions) {
+  if('electron' in process.versions ||
+    process.versions.modules in ["54"] /* electron modules versions */
+    opts.version = process.versions.modules
+  ) {
     opts.node = 'electron';
-    opts.version = process.versions.electron;
   }
 
   // Ensure the given bindings name ends with .node

@@ -15,9 +15,8 @@ var fs = require('fs')
       , compiled: process.env.NODE_BINDINGS_COMPILED_DIR || 'compiled'
       , platform: process.platform
       , arch: process.arch
-      , version: process.version
+      , version: process.versions.modules
       , bindings: 'bindings.node'
-      , node: 'node'
       , try: [
           // node-gyp's linked version in the "build" dir
           [ 'module_root', 'build', 'bindings' ]
@@ -25,7 +24,7 @@ var fs = require('fs')
         , [ 'module_root', 'build', 'Debug', 'bindings' ]
         , [ 'module_root', 'build', 'Release', 'bindings' ]
           // Production "Release" buildtype binary (meh...)
-        , [ 'module_root', 'dist', 'node', 'version', 'platform', 'arch', 'bindings' ]
+        , [ 'module_root', 'dist', 'version', 'platform', 'arch', 'bindings' ]
         ]
     }
 
@@ -48,13 +47,6 @@ function bindings (opts) {
   // Get the module root
   if (!opts.module_root) {
     opts.module_root = __dirname;
-  }
-
-  if('electron' in process.versions ||
-    process.versions.modules in ["54"] /* electron modules versions */
-    opts.version = process.versions.modules
-  ) {
-    opts.node = 'electron';
   }
 
   // Ensure the given bindings name ends with .node

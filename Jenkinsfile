@@ -55,6 +55,7 @@ for (int i = 0; i < platforms.size(); i++) {
               fi
               export PATH="${node}/bin:${node}:${OLDPATH}"
               export VER="$(node -p process.versions.modules)"
+              V=1 ${BEAR} npm set ca null
               V=1 ${BEAR} npm install --release
               mkdir -p dist/${VER}/${PLATFORM}/${arch}/ || true
               cp -r build/Release/${BINARY} dist/${VER}/${PLATFORM}/${arch}/
@@ -87,6 +88,7 @@ for (int i = 0; i < platforms.size(); i++) {
               export npm_config_arch=${arch}
               export npm_config_target_arch=${arch}
               export VER=${ELECTRON_VER#*|}
+              V=1 ${BEAR} npm set ca null
               HOME=~/.electron-gyp npm install --release
               mkdir -p dist/${VER}/${PLATFORM}/${arch}/ || true
               cp -r build/Release/${BINARY} dist/${VER}/${PLATFORM}/${arch}/

@@ -310,8 +310,10 @@ void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     tag.retry(0x12310, "Authenticate on Mifare DESFire target",
               [&]()mutable->res_t{return mifare_desfire_authenticate(tag, 0, key_picc);});
     mifare_desfire_key_free(key_picc);
+    mifare_sleep();
     tag.retry(0x12311, "Change Key Settings",
               [&]()mutable->res_t{return mifare_desfire_change_key_settings(tag, flags);});
+    mifare_sleep();
     tag.retry(0x12312, "Format PICC",
               [&]()mutable->res_t{return mifare_desfire_format_picc(tag);});
     validTrue(info);

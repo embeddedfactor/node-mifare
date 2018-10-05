@@ -173,6 +173,9 @@ class GuardTag {
         if(m_data) {
           while(1) {
             res = mifare_desfire_connect(m_data->tag);
+            if(res==240) { // ERROR_VC_DISCONNECTED - Card needs reconnect
+              res = mifare_desfire_reconnect(m_data->tag);
+            }
             if(res && error() == 0x8010000B) {
               // SCARD_E_SHARING_VIOLATION
               // The smart card cannot be accessed because of other connections outstanding

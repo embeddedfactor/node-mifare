@@ -597,7 +597,7 @@ void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     uint8_t lendata[20]; // cf FIXME in mifare_desfire.c read_data()
     tag.retry(0x12326, "Reading of NDEF file",
               [&]()mutable->res_t{return mifare_desfire_read_data(tag, file_no, 0, 2, lendata);});
-    ndef_msg_len = (((uint16_t)lendata[0]) << 8) + ((uint16_t)lendata[1]);
+    ndef_msg_len = (((uint16_t)lendata[0]) << 8) + ((uint16_t)lendata[1]); // uint16_t endianess swap
     if(ndef_msg_len + 2 > ndef_msg_len_max) {
       throw errorResult(info, 0x12327, "Declared ndef size larger than max ndef size");
     }

@@ -117,6 +117,7 @@ class GuardTag {
       res_t ret_code = 0;
       unsigned int int_code = 0;
       while(tries>0) {
+        mifare_clear_internal_error();
         ret_code = try_f();
         int_code = error();
         --tries;
@@ -172,10 +173,11 @@ class GuardTag {
         uv_mutex_lock(  &m_reader->mDevice);
         if(m_data) {
           while(1) {
+            mifare_clear_internal_error();
             res = mifare_desfire_connect(m_data->tag);
-            if(res==240) { // ERROR_VC_DISCONNECTED - Card needs reconnect
+            /*if(res==240) { // ERROR_VC_DISCONNECTED - Card needs reconnect
               res = mifare_desfire_reconnect(m_data->tag);
-            }
+            }*/
             if(res && error() == 0x8010000B) {
               // SCARD_E_SHARING_VIOLATION
               // The smart card cannot be accessed because of other connections outstanding

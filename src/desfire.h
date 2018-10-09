@@ -115,10 +115,11 @@ class GuardTag {
 
     /* Retry a closure/lambda n times and throw an error on failiur with pos_code and name */
     res_t retry(unsigned int pos_code, const char *name, std::function<res_t ()> try_f, int tries=3) {
-      std::cout << "ReTry" << name << std::endl;
+      std::cout << "ReTry " << name << std::endl;
       res_t ret_code = 0;
       unsigned int int_code = 0;
       while(tries>0) {
+        std::cout << "Try " << tries << " " << name << std::endl;
         freefare_clear_internal_error(m_data->tag);
         ret_code = try_f();
         int_code = error();
@@ -170,28 +171,32 @@ class GuardTag {
     /* Lock cardreader for exclusive access for threads inside this app and connect to card if possible
      * Throws error on failiur */
     void guard() {
-      std::cout << "Guard" << std::endl;
+      std::cout << "Guard " << std::endl;
       if(!m_active) {
         int res = 0;
         uv_mutex_lock(  &m_reader->mDevice);
         if(m_data) {
           while(1) {
+            std::cout << "Guard: Connect" << std::endl;
             freefare_clear_internal_error(m_data->tag);
             res = mifare_desfire_connect(m_data->tag);
             /*if(res==240) { // ERROR_VC_DISCONNECTED - Card needs reconnect
               res = mifare_desfire_reconnect(m_data->tag);
             }*/
             if(res && error() == 0x8010000B) {
+              std::cout << "Guard: Not a Command" << std::endl;
               // SCARD_E_SHARING_VIOLATION
               // The smart card cannot be accessed because of other connections outstanding
               mifare_sleep();
               continue;
             } else if(res) {
+              std::cout << "Guard: Throw error: " << res << " " << error() << " " << errno << std::endl;
               uv_mutex_unlock(&m_reader->mDevice);
 
               throw errorResult(m_info, 0x12303, errorString(), error() | errno, "Can't conntect to Mifare DESFire target.");
               break;
             } else {
+              std::cout << "Guard: OK" << std::endl;
               break;
             }
           }
@@ -204,9 +209,11 @@ class GuardTag {
     /* Unlocks card reader after exclusive access and disconnects from card if possible
      * Will allways success (Ignores errors) */
     void unguard() {
-      std::cout << "UnGuard" << std::endl;
+      std::cout << "UnGuard " << std::endl;
       if(m_active) {
+        std::cout << "UnGuard: Active" << std::endl;
         if(m_data&&m_data->tag) {
+          std::cout << "UnGuard: Disconnect" << std::endl;
           mifare_desfire_disconnect(m_data->tag);
         }
         uv_mutex_unlock(&m_reader->mDevice);

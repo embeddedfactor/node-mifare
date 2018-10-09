@@ -115,6 +115,7 @@ class GuardTag {
 
     /* Retry a closure/lambda n times and throw an error on failiur with pos_code and name */
     res_t retry(unsigned int pos_code, const char *name, std::function<res_t ()> try_f, int tries=3) {
+      std::cout << "ReTry" << name << std::endl;
       res_t ret_code = 0;
       unsigned int int_code = 0;
       while(tries>0) {
@@ -169,6 +170,7 @@ class GuardTag {
     /* Lock cardreader for exclusive access for threads inside this app and connect to card if possible
      * Throws error on failiur */
     void guard() {
+      std::cout << "Guard" << std::endl;
       if(!m_active) {
         int res = 0;
         uv_mutex_lock(  &m_reader->mDevice);
@@ -202,6 +204,7 @@ class GuardTag {
     /* Unlocks card reader after exclusive access and disconnects from card if possible
      * Will allways success (Ignores errors) */
     void unguard() {
+      std::cout << "UnGuard" << std::endl;
       if(m_active) {
         if(m_data&&m_data->tag) {
           mifare_desfire_disconnect(m_data->tag);

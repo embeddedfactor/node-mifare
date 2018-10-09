@@ -4,6 +4,7 @@
 #define DESFIRE_H
 
 #include <nan.h>
+#include <errno.h>
 #include <vector>
 #include <iostream>
 #include <cstring>
@@ -185,7 +186,8 @@ class GuardTag {
               continue;
             } else if(res) {
               uv_mutex_unlock(&m_reader->mDevice);
-              throw errorResult(m_info, 0x12303, errorString(), error(), "Can't conntect to Mifare DESFire target.");
+
+              throw errorResult(m_info, 0x12303, errorString(), error() | errno, "Can't conntect to Mifare DESFire target.");
               break;
             } else {
               break;

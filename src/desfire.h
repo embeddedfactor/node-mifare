@@ -193,7 +193,7 @@ class GuardTag {
               // The smart card cannot be accessed because of other connections outstanding
               mifare_sleep();
               continue;
-            } else if(res && error() == 0 && errno == ENXIO) {
+            } else if(res && error() == ENXIO) {
               std::cout << "Guard: Disconnect. Should not be connected anymore" << std::endl;
               mifare_desfire_disconnect(m_data->tag);
               continue;

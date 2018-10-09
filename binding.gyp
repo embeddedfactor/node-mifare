@@ -38,7 +38,7 @@
       ],
       "msvs_settings": {
         "VCCLCompilerTool": {
-          "ExceptionHandling": 2
+          "ExceptionHandling": '2'
         }
       },
       "defines": [

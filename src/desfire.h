@@ -153,7 +153,11 @@ class GuardTag {
     /* Returns the error number of the underlying service */
     unsigned int error() {
       if(m_data) {
-        return freefare_internal_error(m_data->tag);
+        int err = freefare_internal_error(m_data->tag);
+        if(!err) {
+          err = errno;
+        }
+        return err;
       } else {
         return 0;
       }
@@ -189,11 +193,15 @@ class GuardTag {
               // The smart card cannot be accessed because of other connections outstanding
               mifare_sleep();
               continue;
+            } else if(res && error() == 0 && errno == ENXIO) {
+              std::cout << "Guard: Disconnect. Should not be connected anymore" << std::endl;
+              mifare_desfire_disconnect(m_data->tag);
+              continue;
             } else if(res) {
               std::cout << "Guard: Throw error: " << res << " " << error() << " " << errno << std::endl;
               uv_mutex_unlock(&m_reader->mDevice);
 
-              throw errorResult(m_info, 0x12303, errorString(), error() | errno, "Can't conntect to Mifare DESFire target.");
+              throw errorResult(m_info, 0x12303, errorString(), error(), "Can't conntect to Mifare DESFire target.");
               break;
             } else {
               std::cout << "Guard: OK" << std::endl;

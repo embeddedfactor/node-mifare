@@ -38,9 +38,12 @@
       ],
       "msvs_settings": {
         "VCCLCompilerTool": {
-          "ExceptionHandling": 1
+          "ExceptionHandling": 2
         }
       },
+      "defines": [
+        "_HAS_EXCEPTIONS=1"
+      ],
       "cflags": [
         "-std=c++11",
         "-Wall",

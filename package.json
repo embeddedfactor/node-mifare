@@ -1,6 +1,6 @@
 {
   "name": "node-mifare",
-  "version": "2.1.1",
+  "version": "2.1.2,
   "description": "Read and write Mifare DESFire Cards from nodejs",
   "main": "index.js",
   "scripts": {

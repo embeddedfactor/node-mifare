@@ -34,6 +34,7 @@
         "src/mifare.cc",
         "src/reader.cc",
         "src/desfire.cc",
+        "src/ultralight.cc",
         "src/utils.cc"
       ],
       "msvs_settings": {

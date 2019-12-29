@@ -4,28 +4,28 @@
 #include "desfire.h"
 #include "utils.h"
 
-v8::Local<v8::Object> CardCreate(ReaderData *reader, FreefareTag *tagList, FreefareTag activeTag) {
-  CardData *cardData = new CardData(reader, tagList);
+v8::Local<v8::Object> DesfireCreate(ReaderData *reader, FreefareTag *tagList, FreefareTag activeTag) {
+  DesfireData *cardData = new DesfireData(reader, tagList);
   cardData->tag = activeTag;
   v8::Local<v8::Object> card = Nan::New<v8::Object>();
   Nan::Set(card, Nan::New("type").ToLocalChecked(), Nan::New("desfire").ToLocalChecked());
   Nan::SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
 
-  Nan::SetMethod(card, "info", CardInfo);
-  Nan::SetMethod(card, "masterKeyInfo", CardMasterKeyInfo);
-  Nan::SetMethod(card, "keyVersion", CardKeyVersion);
-  Nan::SetMethod(card, "freeMemory", CardFreeMemory);
-  Nan::SetMethod(card, "setKey", CardSetKey);
-  Nan::SetMethod(card, "setAid", CardSetAid);
-  Nan::SetMethod(card, "format", CardFormat);
-  Nan::SetMethod(card, "createNdef", CardCreateNdef);
-  Nan::SetMethod(card, "readNdef", CardReadNdef);
-  Nan::SetMethod(card, "writeNdef", CardWriteNdef);
-  Nan::SetMethod(card, "free", CardFree);
+  Nan::SetMethod(card, "info", DesfireInfo);
+  Nan::SetMethod(card, "masterKeyInfo", DesfireMasterKeyInfo);
+  Nan::SetMethod(card, "keyVersion", DesfireKeyVersion);
+  Nan::SetMethod(card, "freeMemory", DesfireFreeMemory);
+  Nan::SetMethod(card, "setKey", DesfireSetKey);
+  Nan::SetMethod(card, "setAid", DesfireSetAid);
+  Nan::SetMethod(card, "format", DesfireFormat);
+  Nan::SetMethod(card, "createNdef", DesfireCreateNdef);
+  Nan::SetMethod(card, "readNdef", DesfireReadNdef);
+  Nan::SetMethod(card, "writeNdef", DesfireWriteNdef);
+  Nan::SetMethod(card, "free", DesfireFree);
   return card;
 }
 
-void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
+void DesfireInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
   try {
     v8::Local<v8::Object> card = Nan::New<v8::Object>();
     struct mifare_desfire_version_info info;
@@ -34,7 +34,7 @@ void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
       throw errorResult(v8info, 0x12302, "This function takes no arguments");
     }
     { // Guarded realm;
-      GuardTag tag(v8info);
+      DesfireGuardTag tag(v8info);
       tag.retry(0x12304, "Fetch Tag Version Info",
                 [&]()mutable->res_t{return mifare_desfire_get_version(tag, &info);});
     }
@@ -89,7 +89,7 @@ void CardInfo(const Nan::FunctionCallbackInfo<v8::Value> &v8info) {
   }
 }
 
-void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
     res_t res;
     uint8_t settings;
@@ -98,7 +98,7 @@ void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     if(info.Length()!=0) {
       throw errorResult(info, 0x12306, "This function takes no arguments");
     }
-    GuardTag tag_guard(info);
+    DesfireGuardTag tag_guard(info);
 
     res = mifare_desfire_get_key_settings(tag_guard, &settings, &max_keys);
     if(!res) {
@@ -119,26 +119,26 @@ void CardMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   }
 }
 
-void CardName(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireName(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
     if(info.Length()!=0) {
       throw errorResult(info, 0x12302, "This function takes no arguments");
     }
 
-    GuardTag tag(info);
+    DesfireGuardTag tag(info);
     info.GetReturnValue().Set(Nan::New(tag.name()).ToLocalChecked());
   } catch(MifareError err) {
     // The error is already assigned to the InfoScope
   }
 }
 
-void CardKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
     uint8_t version;
     if(info.Length()!=1 || !info[0]->IsNumber()) {
       throw errorResult(info, 0x12302, "This function takes a key number as arguments");
     }
-    GuardTag tag(info);
+    DesfireGuardTag tag(info);
     tag.retry(0x12308, "Fetch Tag Version Information",
               [&]()mutable->res_t{ return mifare_desfire_get_key_version(tag, Nan::To<uint32_t>(info[0]).FromJust(), &version);});
     info.GetReturnValue().Set(Nan::New(version));
@@ -147,14 +147,14 @@ void CardKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   }
 }
 
-void CardFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
     uint32_t size;
     if(info.Length()!=0) {
       throw errorResult(info, 0x12302, "This function takes no arguments");
     }
 
-    GuardTag tag(info);
+    DesfireGuardTag tag(info);
     tag.retry(0x12309, "Free Memory",
               [&]()mutable->res_t{return mifare_desfire_free_mem(tag, &size);});
     info.GetReturnValue().Set(Nan::New(size));
@@ -163,9 +163,9 @@ void CardFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   }
 }
 
-void CardSetAid(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireSetAid(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
-    CardData *data = CardData_from_info(info);
+    DesfireData *data = DesfireData_from_info(info);
     if(!data) {
       throw errorResult(info, 0x12301, "Card is already free");
     }
@@ -183,7 +183,7 @@ void CardSetAid(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   }
 }
 
-void CardSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
     typedef MifareDESFireKey (*callback_t)(const uint8_t *);
     callback_t callbacks[4][2] = {
@@ -193,7 +193,7 @@ void CardSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info) {
       {mifare_desfire_aes_key_new, NULL}
     };
 
-    CardData *data = CardData_from_info(info);
+    DesfireData *data = DesfireData_from_info(info);
     if(!data) {
       throw errorResult(info, 0x12301, "Card is already free");
     }
@@ -278,7 +278,7 @@ void CardSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   }
 }
 
-void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
     uint8_t key_data_picc[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
     if(info.Length()>1 || (info.Length()==1 && !info[0]->IsObject())) {
@@ -305,7 +305,7 @@ void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
       true;
     uint8_t flags = (configChangable << 3) | (freeCreateDelete << 2) | (freeDirectoryList << 1) | (keyChangable << 0);
 
-    GuardTag tag(info);
+    DesfireGuardTag tag(info);
     MifareDESFireKey key_picc = mifare_desfire_des_key_new_with_version(key_data_picc);
     tag.retry(0x12310, "Authenticate on Mifare DESFire target",
               [&]()mutable->res_t{return mifare_desfire_authenticate(tag, 0, key_picc);});
@@ -322,7 +322,7 @@ void CardFormat(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   }
 }
 
-void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
     uint8_t ndef_read_key[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
     uint8_t *key_data_picc = ndef_read_key;
@@ -332,7 +332,7 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
       throw errorResult(info, 0x12302, "This function takes no arguments");
     }
 
-    GuardTag tag(info);
+    DesfireGuardTag tag(info);
     struct mifare_desfire_version_info cardinfo;
     tag.retry(0x12304, "Fetch Version Infomation",
               [&]()mutable->res_t{return mifare_desfire_get_version(tag, &cardinfo);});
@@ -490,7 +490,7 @@ void CardCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 
 
 
-int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, GuardTag &tag, uint8_t &file_no, uint16_t &ndef_max_len, MifareDESFireKey key_app) {
+int DesfireReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, DesfireGuardTag &tag, uint8_t &file_no, uint16_t &ndef_max_len, MifareDESFireKey key_app) {
   int version;
   res_t res;
   uint8_t *cc_data;
@@ -575,7 +575,7 @@ int CardReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &v8info, GuardTag
   return 0;
 }
 
-void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
     res_t res;
     uint8_t file_no;
@@ -586,10 +586,10 @@ void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     if(info.Length()!=0) {
       throw errorResult(info, 0x12302, "This function does not take any arguments");
     }
-    GuardTag tag(info);
+    DesfireGuardTag tag(info);
     MifareDESFireKey key_app;
     key_app = mifare_desfire_des_key_new_with_version(ndef_read_key);
-    res = CardReadNdefTVL(info, tag, file_no, ndef_msg_len_max, key_app);
+    res = DesfireReadNdefTVL(info, tag, file_no, ndef_msg_len_max, key_app);
     mifare_desfire_key_free(key_app);
     if(!(ndef_msg = new uint8_t[ndef_msg_len_max + 20])) { // cf FIXME in mifare_desfire.c read_data()
       throw errorResult(info, 0x12325, "Allocation of ndef file failed");
@@ -620,7 +620,7 @@ void CardReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   }
 }
 
-void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
     res_t res;
     uint8_t file_no;
@@ -636,12 +636,12 @@ void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
     }
     ndef_msg_len = node::Buffer::Length(info[0]);
     ndef_msg = reinterpret_cast<uint8_t *>(node::Buffer::Data(info[0]));
-    GuardTag tag(info);
+    DesfireGuardTag tag(info);
 
     MifareDESFireKey key_app;
     key_app = mifare_desfire_des_key_new_with_version(ndef_read_key);
 
-    CardReadNdefTVL(info, tag, file_no, ndef_msg_len_max, key_app);
+    DesfireReadNdefTVL(info, tag, file_no, ndef_msg_len_max, key_app);
     result->Set(Nan::New("maxLength").ToLocalChecked(), Nan::New(ndef_msg_len_max));
     if(ndef_msg_len > ndef_msg_len_max) {
       throw errorResult(info, 0x12327, "Supplied NDEF larger than max NDEF size");
@@ -665,9 +665,9 @@ void CardWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   }
 }
 
-void CardFree(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+void DesfireFree(const Nan::FunctionCallbackInfo<v8::Value> &info) {
   try {
-    CardData *data = CardData_from_info(info);
+    DesfireData *data = DesfireData_from_info(info);
     if(!data) {
       throw errorResult(info, 0x12322, "Card is already free");
     }

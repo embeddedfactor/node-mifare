@@ -5,6 +5,7 @@
 
 #include "reader.h"
 #include "desfire.h"
+#include "ultralight.h"
 #include "utils.h"
 
 ReaderData *ReaderData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
@@ -101,10 +102,19 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
     for (t = tags[0]; t != NULL; t=tags[++tag_count]) {
       data->last_uids.push_back(freefare_get_tag_uid(t));
       // TODO: do something with the tag
-      if(freefare_get_tag_type(t) == DESFIRE) {
+      if(freefare_get_tag_type(t) == MIFARE_DESFIRE) {
         tags_used = true;
 
-        v8::Local<v8::Object> card = CardCreate(data, tags, t);
+        v8::Local<v8::Object> card = DesfireCreate(data, tags, t);
+
+        const unsigned argc = 3;
+        Nan::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, card };
+        data->callback->Call(Nan::GetCurrentContext()->Global(), argc, argv);
+        //delete cardData;
+      } else if(freefare_get_tag_type(t) == MIFARE_ULTRALIGHT || freefare_get_tag_type(t) == MIFARE_ULTRALIGHT_C) {
+        tags_used = true;
+
+        v8::Local<v8::Object> card = UltralightCreate(data, tags, t);
 
         const unsigned argc = 3;
         Nan::Local<v8::Value> argv[argc] = { Nan::Undefined(), reader, card };
@@ -210,7 +220,10 @@ void reader_timer_callback(uv_timer_t *handle, int timer_status) {
         // XXX: With PCSC tags is always length 2 with {tag, NULL} we assume this is allways the case here!!!!
         for(int i = 0; (!res) && tags && tags[i]; i++) {
           if(tags[i] && freefare_get_tag_type(tags[i]) == MIFARE_DESFIRE) {
-            v8::Local<v8::Object> card = CardCreate(data, tags, tags[i]);
+            v8::Local<v8::Object> card = DesfireCreate(data, tags, tags[i]);
+            callCallback(data, Nan::Undefined(), reader, card);
+          } else if(freefare_get_tag_type(tags[i]) == MIFARE_ULTRALIGHT || freefare_get_tag_type(tags[i]) == MIFARE_ULTRALIGHT_C) {
+            v8::Local<v8::Object> card = UltralightCreate(data, tags, tags[i]);
             callCallback(data, Nan::Undefined(), reader, card);
           }
         }

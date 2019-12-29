@@ -1,7 +1,7 @@
-// Copyright 2013, Rolf Meyer
+// Copyright 2019, Rolf Meyer
 // See LICENCE for more information
-#ifndef DESFIRE_H
-#define DESFIRE_H
+#ifndef ULTRALIGHT_H
+#define ULTRALIGHT_H
 
 #include <nan.h>
 #include <errno.h>
@@ -28,25 +28,14 @@
 #include <functional>
 
 /* A data object collecting all interesting details for a tag */
-class DesfireData {
+class UltralightData {
   public:
     /* The data object is created from a reader data object and a freefare tag object */
-    DesfireData(ReaderData *reader, FreefareTag *tags) : reader(reader), tags(tags) {
-      uint8_t null[8] = {0,0,0,0,0,0,0,0};
-      key = mifare_desfire_des_key_new(null);
-      aid = mifare_desfire_aid_new(0x000001);
+    UltralightData(ReaderData *reader, FreefareTag *tags) : reader(reader), tags(tags) {
     }
 
     /* If destroyed it will free the tags as well */
-    ~DesfireData() {
-      if(key) {
-        mifare_desfire_key_free(key);
-        key = NULL;
-      }
-      if(aid) {
-        free(aid);
-        aid = NULL;
-      }
+    ~UltralightData() {
       if(tag) {
         freefare_free_tags(tags);
       }
@@ -59,13 +48,11 @@ class DesfireData {
     // The shared pointer makes problems. tags is not an C++ object and needs an special destructor
     //std::shared_ptr<FreefareTag> tags;
     FreefareTag *tags;
-    MifareDESFireKey key;
-    MifareDESFireAID aid;
 };
 
 /* Extracts Tag data object from nodejs info context */
-inline DesfireData *DesfireData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
-  DesfireData *data = static_cast<DesfireData *>(
+inline UltralightData *UltralightData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  UltralightData *data = static_cast<UltralightData *>(
     v8::Local<v8::External>::Cast(
       Nan::GetPrivate(info.This(), Nan::New("data").ToLocalChecked()).ToLocalChecked()
     )->Value()
@@ -78,15 +65,15 @@ inline DesfireData *DesfireData_from_info(const Nan::FunctionCallbackInfo<v8::Va
 }
 
 /* GuardTag a wrapper class for FreefareTag which can be used transperent and is also a scope guard for the connection to the card */
-class DesfireGuardTag {
+class UltralightGuardTag {
   public:
     /* Constructor. Guards the tag imideatly if active is true.
      * Extracts the tag, reader and data from the info object.
      * It also provides a retry function which executes a closure/lamda.
      * On negative result an error is detected and the the internal error state of the card reader service is read.
      * In case of communication error the closure is reexecuted n tries on other error an exeption is thrown. */
-    DesfireGuardTag(const Nan::FunctionCallbackInfo<v8::Value> &info, bool active = true)
-      : m_info(info), m_data(DesfireData_from_info(info)), m_reader(m_data->reader), m_active(false) {
+    UltralightGuardTag(const Nan::FunctionCallbackInfo<v8::Value> &info, bool active = true)
+      : m_info(info), m_data(UltralightData_from_info(info)), m_reader(m_data->reader), m_active(false) {
       // We store the m_data->reader pointer as m_reader in case m_data is destroyed for some reason.
       if(active) {
         guard();
@@ -94,12 +81,12 @@ class DesfireGuardTag {
     }
 
     /* Destructor. Unguards the tag. */
-    virtual ~DesfireGuardTag() {
+    virtual ~UltralightGuardTag() {
       unguard();
     }
 
     /* Returns the card data */
-    DesfireData* data() {
+    UltralightData* data() {
       return m_data;
     }
 
@@ -183,7 +170,7 @@ class DesfireGuardTag {
           while(1) {
             //std::cout << "Guard: Connect" << std::endl;
             freefare_clear_internal_error(m_data->tag);
-            res = mifare_desfire_connect(m_data->tag);
+            res = mifare_ultralight_connect(m_data->tag);
             /*if(res==240) { // ERROR_VC_DISCONNECTED - Card needs reconnect
               res = mifare_desfire_reconnect(m_data->tag);
             }*/
@@ -195,7 +182,7 @@ class DesfireGuardTag {
               continue;
             } else if(res && error() == ENXIO) {
               //std::cout << "Guard: Disconnect. Should not be connected anymore" << std::endl;
-              mifare_desfire_disconnect(m_data->tag);
+              mifare_ultralight_disconnect(m_data->tag);
               continue;
             } else if(res) {
               //std::cout << "Guard: Throw error: " << res << " " << error() << " " << errno << std::endl;
@@ -222,7 +209,7 @@ class DesfireGuardTag {
         //std::cout << "UnGuard: Active" << std::endl;
         if(m_data&&m_data->tag) {
           //std::cout << "UnGuard: Disconnect" << std::endl;
-          mifare_desfire_disconnect(m_data->tag);
+          mifare_ultralight_disconnect(m_data->tag);
         }
         uv_mutex_unlock(&m_reader->mDevice);
       }
@@ -231,50 +218,50 @@ class DesfireGuardTag {
 
   private:
     const Nan::FunctionCallbackInfo<v8::Value> &m_info;
-    DesfireData *m_data;
+    UltralightData *m_data;
     ReaderData *m_reader;
     bool m_active;
 };
 
-v8::Local<v8::Object> DesfireCreate(ReaderData *reader, FreefareTag *tagList, FreefareTag activeTag);
+v8::Local<v8::Object> UltralightCreate(ReaderData *reader, FreefareTag *tagList, FreefareTag activeTag);
 
 /** Extract tag data from info nodejs info object */
-DesfireData *DesfireData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
+UltralightData *UltralightData_from_info(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 /** Get tag information as an javascript object */
-void DesfireInfo(const Nan::FunctionCallbackInfo<v8::Value> &info);
+void UltralightInfo(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 /** Get master key information from tag as an javascript object */
-void DesfireMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info);
+//void UltralightMasterKeyInfo(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 /** Return readable name of the card */
-void DesfireName(const Nan::FunctionCallbackInfo<v8::Value> &info);
+void UltralightName(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 /** Read version information from the card */
-void DesfireKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info);
+//void UltralightKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 /** Free card data memory and destroy card */
-void DesfireFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info);
+//void UltralightFreeMemory(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 /** Set AID for tag access. */
-void DesfireSetAid(const Nan::FunctionCallbackInfo<v8::Value> &info);
+//void UltralightSetAid(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-void DesfireSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info);
+//void UltralightSetKey(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-void DesfireFormat(const Nan::FunctionCallbackInfo<v8::Value> &info);
+//void UltralightFormat(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-void DesfireCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
+//void UltralightCreateNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 /**
  * Helper function to locate and read TVL of a desfire ndef sector
  * @return Might return a result object. This is only used when res is lesser 0 otherwise the object is empty.
  */
-int DesfireReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &info, DesfireData *data, uint8_t &file_no, uint16_t &ndefmaxlen, MifareDESFireKey key_app);
+//int UltralightReadNdefTVL(const Nan::FunctionCallbackInfo<v8::Value> &info, CardData *data, uint8_t &file_no, uint16_t &ndefmaxlen, MifareDESFireKey key_app);
 
-void DesfireReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
+//void UltralightReadNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-void DesfireWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
+//void UltralightWriteNdef(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
-void DesfireFree(const Nan::FunctionCallbackInfo<v8::Value> &info);
+void UltralightFree(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
 #endif // DESFIRE_H

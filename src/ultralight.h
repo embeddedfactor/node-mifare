@@ -237,6 +237,7 @@ void UltralightInfo(const Nan::FunctionCallbackInfo<v8::Value> &info);
 /** Return readable name of the card */
 void UltralightName(const Nan::FunctionCallbackInfo<v8::Value> &info);
 
+void UltralightAny(const Nan::FunctionCallbackInfo<v8::Value> &info);
 /** Read version information from the card */
 //void UltralightKeyVersion(const Nan::FunctionCallbackInfo<v8::Value> &info);
 

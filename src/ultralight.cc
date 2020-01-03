@@ -12,6 +12,11 @@ v8::Local<v8::Object> UltralightCreate(ReaderData *reader, FreefareTag *tagList,
   Nan::SetPrivate(card, Nan::New("data").ToLocalChecked(), Nan::New<v8::External>(cardData));
 
   Nan::SetMethod(card, "info", UltralightInfo);
+  Nan::SetMethod(card, "freeMemory", UltralightAny);
+  Nan::SetMethod(card, "format", UltralightAny);
+  Nan::SetMethod(card, "createNdef", UltralightAny);
+  Nan::SetMethod(card, "readNdef", UltralightAny);
+  Nan::SetMethod(card, "writeNdef", UltralightAny);
   //Nan::SetMethod(card, "freeMemory", CardFreeMemory);
   //Nan::SetMethod(card, "format", CardFormat);
   //Nan::SetMethod(card, "createNdef", CardCreateNdef);
@@ -61,6 +66,14 @@ void UltralightName(const Nan::FunctionCallbackInfo<v8::Value> &info) {
 
     UltralightGuardTag tag(info);
     info.GetReturnValue().Set(Nan::New(tag.name()).ToLocalChecked());
+  } catch(MifareError err) {
+    // The error is already assigned to the InfoScope
+  }
+}
+
+void UltralightAny(const Nan::FunctionCallbackInfo<v8::Value> &info) {
+  try {
+    //info.GetReturnValue().Set(Nan::New(tag.name()).ToLocalChecked());
   } catch(MifareError err) {
     // The error is already assigned to the InfoScope
   }
